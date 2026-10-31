@@ -105,12 +105,12 @@
   .forecast-card .rain { font-size: 11px; color: var(--brand); margin-top: 6px; font-weight: 500; }
 
   /* Toolbar */
-  .toolbar { padding: 12px 16px; border-bottom: 1px solid var(--line); display: flex; gap: 10px; align-items: center; background: #fff; }
+  .toolbar { flex-shrink: 0; padding: 12px 16px; border-bottom: 1px solid var(--line); display: flex; gap: 10px; align-items: center; background: #fff; }
   .search-box { position: relative; flex: 1; }
   .search-box svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; color: var(--muted); }
   #q { width: 100%; padding: 10px 12px 10px 36px; border: 1px solid var(--line); border-radius: 12px; font-size: 14px; outline: none; background: #f8fafc; transition: 0.2s; }
   #q:focus { border-color: var(--brand); background: #fff; box-shadow: 0 0 0 3px rgba(14,165,233,0.15); }
-  #count { font-size: 13px; font-weight: 600; color: var(--brand-dark); white-space: nowrap; cursor: pointer; padding: 6px 12px; background: #e0f2fe; border-radius: 20px; }
+  #count { font-size: 13px; font-weight: 600; color: var(--brand-dark); white-space: nowrap; cursor: pointer; padding: 8px 14px; background: #e0f2fe; border-radius: 20px; flex-shrink: 0; }
   #count:hover { background: #bae6fd; }
 
   /* Toggle Top Panel Button */
@@ -274,9 +274,12 @@
     
     #map-wrapper { height: var(--app-h); width: 100%; }
     
-    #top-panel { 
+    /* เว้นขอบซ้ายหัวเว็บ ไม่ให้ปุ่ม ◀ (ลอยซ้ายบน) ทับชื่อ */
+    #sidebar header { padding-left: 64px; }
+
+    #top-panel {
       flex: 0 0 auto;
-      max-height: 40vh; 
+      max-height: 55vh;
       overflow-y: auto;
       -webkit-overflow-scrolling: touch;
     }
@@ -328,18 +331,19 @@
         </div>
         <div id="forecast-wrapper" class="forecast-wrapper"></div>
       </div>
-
-      <div class="toolbar">
-        <div class="search-box">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-          <input id="q" type="search" placeholder="ค้นหาชื่อจุด / รหัสกล้อง...">
-        </div>
-        <span id="count" onclick="openMultiview()" title="ดูภาพรวมทุกกล้อง">–</span>
-      </div>
     </div>
 
     <button id="toggle-top-panel">▲ ซ่อนข้อมูลส่วนบน</button>
-    
+
+    <!-- แถบค้นหา: อยู่นอกส่วนบน จึงเห็นตลอดแม้ซ่อนส่วนบน -->
+    <div class="toolbar">
+      <div class="search-box">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+        <input id="q" type="search" placeholder="ค้นหาชื่อจุด / รหัสกล้อง...">
+      </div>
+      <span id="count" onclick="openMultiview()" title="ดูภาพรวมทุกกล้อง">–</span>
+    </div>
+
     <!-- รายการกล้อง (ส่วนนี้เลื่อนขึ้นลงได้) -->
     <ul id="list"></ul>
     
@@ -655,6 +659,7 @@ function expandVideo(videoId) {
 function popupHtml(c){
     const st=statusOf(c); 
     const isLive=(c.cameraId===1||c.code==='S8');
+    // บัญชีดูภาพสดที่หน่วยงานราชการเปิดให้ใช้ร่วมกัน (ใส่ไว้ในลิงก์เพื่อกดแล้วดูได้ทันที)
     const liveUrl='http://live:Live2025!@ta200304.dyndns.info:5001/axis-cgi/mjpg/video.cgi';
     
     let btnHtml = '';
@@ -717,7 +722,7 @@ function applyFilter(q){
     const s=(q||'').trim().toLowerCase();
     const list=ALL.filter(c=>!s||(c.title+' '+c.name+' '+c.code).toLowerCase().includes(s));
     cluster.clearLayers(); list.forEach(c=>{ if(c.marker) cluster.addLayer(c.marker); });
-    buildList(list); document.getElementById('count').textContent=list.length+' กล้อง';
+    buildList(list); document.getElementById('count').textContent='📺 '+list.length+' กล้อง';
 }
 
 function focusCam(c){
@@ -931,6 +936,13 @@ toggleTopBtn.addEventListener('click', () => {
     }
     setTimeout(fitList, 350);
 });
+
+// มือถือ: ซ่อนส่วนบนไว้ก่อน จะได้เห็นรายการกล้องเยอะขึ้นทันที (กดแถบ "แสดงข้อมูลส่วนบน" เพื่อเปิด)
+if (window.innerWidth <= 820) {
+    topPanel.classList.add('hidden');
+    toggleTopBtn.textContent = '▼ แสดงข้อมูลส่วนบน';
+    setTimeout(fitList, 50);
+}
 
 document.getElementById('q').addEventListener('input',e=>applyFilter(e.target.value));
 document.getElementById('refresh').addEventListener('click',loadCams);
