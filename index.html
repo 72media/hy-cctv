@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>ศูนย์ข้อมูลน้ำหาดใหญ่ · CCTV & Weather</title>
+
+<!-- เพิ่มลงหน้าจอโฮม (Add to Home Screen) -->
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<meta name="theme-color" content="#0284c7">
+<meta name="application-name" content="น้ำหาดใหญ่">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="น้ำหาดใหญ่">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="format-detection" content="telephone=no">
+
+<!-- Leaflet & MarkerCluster CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+<!-- HLS.js for GISTDA Streams -->
+<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+
+<style>
+  :root {
+    --line: #e2e8f0; --txt: #1e293b; --muted: #64748b;
+    --brand: #0ea5e9; --brand-dark: #0284c7;
+    --bg-glass: rgba(255, 255, 255, 0.96);
+    --shadow-sm: 0 1px 3px rgba(0,0,0,0.05);
+    --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.05);
+    --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.05);
+    --app-h: 100vh; /* จะถูกอัปเดตด้วย JS ให้เท่าความสูงที่มองเห็นจริง */
+  }
+  
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; overflow: hidden; overscroll-behavior: none; }
+  body { font-family: 'Inter', 'Sarabun', sans-serif; color: var(--txt); background: #f1f5f9; }
+  
+  #app { display: flex; height: 100%; position: relative; overflow: hidden; }
+
+  /* ---------- Sidebar ---------- */
+  #sidebar {
+    width: 380px; flex: 0 0 380px; background: var(--bg-glass);
+    backdrop-filter: blur(12px); border-right: 1px solid var(--line);
+    display: flex; flex-direction: column; z-index: 1000;
+    transition: margin-left 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: var(--shadow-lg);
+    height: 100%;
+    overflow: hidden;
+  }
+  #sidebar.collapsed { margin-left: -380px; }
+
+  /* Top Panel */
+  #top-panel {
+    flex-shrink: 0; display: flex; flex-direction: column;
+    max-height: 600px; transition: max-height 0.3s ease-in-out; overflow: hidden;
+  }
+  #top-panel.hidden { max-height: 0; }
+
+  #sidebar header {
+    padding: 16px 20px; background: linear-gradient(135deg, var(--brand-dark), var(--brand));
+    color: #fff; display: flex; align-items: flex-start; gap: 12px;
+  }
+  .header-text { flex: 1; }
+  #sidebar header h1 { font-size: 18px; margin: 0 0 4px 0; font-weight: 700; }
+  #clock { font-size: 13px; font-weight: 500; opacity: 0.9; }
+  #refresh {
+    background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3);
+    color: #fff; border-radius: 8px; padding: 6px 12px; font-size: 13px;
+    font-weight: 600; cursor: pointer; transition: 0.2s; white-space: nowrap;
+  }
+  #refresh:hover { background: rgba(255,255,255,0.3); }
+
+  /* Action Bar */
+  .action-bar { padding: 12px 16px; border-bottom: 1px solid var(--line); background: rgba(255,255,255,0.5); display: flex; flex-direction: column; gap: 8px; }
+  .btn-action {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    width: 100%; padding: 10px; border: none; border-radius: 10px;
+    font-size: 14px; font-weight: 600; cursor: pointer; box-shadow: var(--shadow-md);
+    transition: transform 0.2s, box-shadow 0.2s, background 0.2s;
+  }
+  .btn-action:hover { transform: translateY(-1px); box-shadow: var(--shadow-lg); }
+  .btn-blue { background: linear-gradient(135deg, #3b82f6, #2563eb); color: #fff; }
+  .btn-orange { background: linear-gradient(135deg, #f97316, #ea580c); color: #fff; }
+
+  /* Weather */
+  #weather-section { padding: 16px; border-bottom: 1px solid var(--line); background: #fff; }
+  .current-weather { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; background: #f8fafc; padding: 12px 16px; border-radius: 12px; border: 1px solid var(--line); }
+  .cw-icon { font-size: 36px; }
+  .cw-temp { font-size: 24px; font-weight: 700; color: var(--brand-dark); line-height: 1; }
+  .cw-desc { font-size: 13px; color: var(--muted); margin-top: 4px; }
+  .forecast-wrapper { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 8px; scrollbar-width: thin; }
+  .forecast-wrapper::-webkit-scrollbar { height: 6px; }
+  .forecast-wrapper::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+  .forecast-card { min-width: 80px; background: #fff; border-radius: 12px; padding: 10px 8px; text-align: center; border: 1px solid var(--line); flex-shrink: 0; box-shadow: var(--shadow-sm); }
+  .forecast-card .date { font-size: 12px; font-weight: 600; margin-bottom: 6px; }
+  .forecast-card .icon { font-size: 24px; margin-bottom: 6px; }
+  .forecast-card .temp { font-size: 12px; font-weight: 600; }
+  .temp-max { color: #ef4444; } .temp-min { color: #3b82f6; }
+  .forecast-card .rain { font-size: 11px; color: var(--brand); margin-top: 6px; font-weight: 500; }
+
+  /* Toolbar */
+  .toolbar { padding: 12px 16px; border-bottom: 1px solid var(--line); display: flex; gap: 10px; align-items: center; background: #fff; }
+  .search-box { position: relative; flex: 1; }
+  .search-box svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; color: var(--muted); }
+  #q { width: 100%; padding: 10px 12px 10px 36px; border: 1px solid var(--line); border-radius: 12px; font-size: 14px; outline: none; background: #f8fafc; transition: 0.2s; }
+  #q:focus { border-color: var(--brand); background: #fff; box-shadow: 0 0 0 3px rgba(14,165,233,0.15); }
+  #count { font-size: 13px; font-weight: 600; color: var(--brand-dark); white-space: nowrap; cursor: pointer; padding: 6px 12px; background: #e0f2fe; border-radius: 20px; }
+  #count:hover { background: #bae6fd; }
+
+  /* Toggle Top Panel Button */
+  #toggle-top-panel {
+    width: 100%; padding: 10px; background: #f1f5f9; border: none; border-bottom: 1px solid var(--line);
+    color: var(--muted); font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
+    font-size: 13px; flex-shrink: 0; transition: background 0.2s;
+  }
+  #toggle-top-panel:hover { background: #e2e8f0; }
+
+  /* ---------- List (เลื่อนขึ้นลงได้) ---------- */
+  #list { 
+    list-style: none; margin: 0; padding: 12px; 
+    flex: 1 1 auto; min-height: 0;          /* สำคัญ: ให้ flex child หดได้ จึงจะ scroll ได้ */
+    overflow-y: auto; overflow-x: hidden;
+    background: #f8fafc; 
+    padding-bottom: 24px;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+    touch-action: pan-y;                    /* บอกเบราว์เซอร์ว่านิ้วลากแนวตั้ง = scroll รายการ */
+  }
+  .cam-item { display: flex; gap: 12px; padding: 10px; border-radius: 12px; cursor: pointer; align-items: center; background: #fff; border: 1px solid var(--line); margin-bottom: 8px; box-shadow: var(--shadow-sm); transition: 0.2s; }
+  .cam-item:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+  .cam-item .thumb { width: 72px; height: 52px; object-fit: cover; border-radius: 8px; background: #e2e8f0; flex: 0 0 72px; }
+  .cam-item .meta { min-width: 0; flex: 1; }
+  .cam-item .name { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cam-item .sub { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; margin-top: 6px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .empty { padding: 32px; text-align: center; color: var(--muted); }
+
+  /* Legend */
+  .legend { padding: 12px; font-size: 12px; color: var(--muted); display: flex; gap: 16px; background: #fff; border-top: 1px solid var(--line); flex-wrap: wrap; flex-shrink: 0; }
+
+  /* Toggle Sidebar Button */
+  #sidebar-toggle { position: absolute; top: 16px; left: 392px; z-index: 1100; width: 36px; height: 36px; border-radius: 10px; border: 1px solid var(--line); background: #fff; color: var(--txt); box-shadow: var(--shadow-md); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: bold; transition: left 0.35s; }
+  #sidebar-toggle.collapsed { left: 16px; }
+
+  /* Map Wrapper & Layers */
+  #map-wrapper { flex: 1; min-width: 0; position: relative; }
+  #map { width: 100%; height: 100%; z-index: 1; }
+  .leaflet-bottom.leaflet-right .leaflet-control-zoom { margin-bottom: 40px; border: none; box-shadow: var(--shadow-md); }
+  .leaflet-bottom.leaflet-right .leaflet-control-zoom a { border-radius: 8px; color: var(--txt); background: #fff; border: none; margin-bottom: 4px; font-weight: bold; }
+
+  /* Custom Layer Button & Panel */
+  .layer-btn {
+    position: absolute; top: 16px; right: 16px; z-index: 1000;
+    width: 44px; height: 44px; background: #fff; border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2); display: flex; align-items: center; justify-content: center;
+    cursor: pointer; font-size: 20px; transition: 0.2s;
+  }
+  .layer-btn:hover { background: #f8fafc; }
+  
+  .layer-panel {
+    position: absolute; top: 70px; right: 16px; z-index: 1000;
+    background: #fff; width: 240px; border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2); padding: 16px;
+    display: none; flex-direction: column; gap: 12px;
+  }
+  .layer-panel.active { display: flex; }
+  .layer-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+  .layer-header strong { font-size: 15px; color: var(--txt); }
+  .layer-close { background: none; border: none; font-size: 18px; font-weight: bold; color: var(--muted); cursor: pointer; line-height: 1; }
+  .layer-panel h4 { margin: 0; font-size: 13px; color: var(--txt); border-bottom: 1px solid var(--line); padding-bottom: 4px; margin-top: 8px; }
+  .layer-panel label { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--txt); cursor: pointer; }
+  .layer-panel input[type="radio"], .layer-panel input[type="checkbox"] { accent-color: var(--brand); cursor: pointer; width: 16px; height: 16px; }
+  
+  .radar-slider-box { padding-left: 24px; margin-bottom: 4px; transition: opacity 0.2s; }
+  .radar-slider-box.disabled { opacity: 0.4; pointer-events: none; }
+  .radar-slider-box input[type="range"] { width: 100%; accent-color: var(--brand); cursor: pointer; }
+
+  /* Popup (General CCTV) */
+  .leaflet-popup-content { margin: 12px; width: 280px !important; font-family: 'Inter', 'Sarabun', sans-serif; }
+  .pop-title { font-weight: 700; font-size: 15px; margin-bottom: 10px; }
+  .pop-img { width: 100%; border-radius: 8px; display: block; background: #e2e8f0; cursor: zoom-in; min-height: 160px; object-fit: cover; transition: opacity 0.2s; }
+  .pop-img:hover { opacity: 0.9; }
+  .pop-coord { font-size: 12px; color: var(--muted); margin-top: 8px; }
+  .pop-row { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+  .badge { color: #fff; font-size: 11px; padding: 4px 10px; border-radius: 20px; font-weight: 600; }
+  .code { font-size: 12px; color: var(--muted); font-weight: 600; }
+  .pop-time { font-size: 13px; color: #374151; margin-top: 8px; }
+  .pop-btn-wrap { display: flex; gap: 8px; margin-top: 12px; }
+  .pop-btn { display: flex; align-items: center; justify-content: center; flex: 1; padding: 10px; border-radius: 8px; background: var(--brand); color: #fff; text-decoration: none; font-size: 13px; font-weight: 600; border: none; cursor: pointer; transition: 0.2s; }
+  .pop-btn:hover { background: var(--brand-dark); }
+  .pop-btn.live-btn { background: #dc2626; } .pop-btn.live-btn:hover { background: #b91c1c; }
+
+  /* GISTDA Video Popup CSS */
+  .gistda-popup { width: 280px; }
+  .gistda-popup .pop-title { color: #ea580c; display: flex; align-items: center; gap: 6px; }
+  .gistda-video-box {
+    width: 100%; height: 160px; background: #000; border-radius: 8px; overflow: hidden;
+    position: relative; display: flex; align-items: center; justify-content: center; margin-bottom: 8px;
+  }
+  .gistda-video-box video { width: 100%; height: 100%; object-fit: contain; }
+  .gistda-note { font-size: 11px; color: var(--muted); text-align: center; margin-top: 4px; }
+
+  /* Overlays (Water & Multiview & GISTDA) */
+  .full-overlay { position: absolute; inset: 0; background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(4px); z-index: 2000; display: flex; flex-direction: column; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
+  .full-overlay.active { opacity: 1; pointer-events: auto; }
+  .overlay-header { background: #fff; padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); }
+  .overlay-header h2 { margin: 0; font-size: 18px; font-weight: 700; }
+  .btn-close { background: #f1f5f9; border: none; width: 36px; height: 36px; border-radius: 50%; font-size: 18px; font-weight: bold; color: var(--muted); cursor: pointer; }
+  .overlay-content { flex: 1; background: #fff; position: relative; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .overlay-content iframe { width: 100%; height: 100%; border: none; display: block; }
+
+  /* Multiview Grid */
+  .grid-container { display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(2, 1fr); gap: 12px; padding: 20px; height: calc(100% - 80px); background: #0f172a; overflow-y: auto; }
+  .grid-item { background: #1e293b; border-radius: 12px; overflow: hidden; position: relative; cursor: pointer; border: 1px solid #334155; transition: transform 0.2s; }
+  .grid-item:hover { transform: scale(1.02); border-color: var(--brand); }
+  .grid-item img { width: 100%; height: 100%; object-fit: cover; opacity: 0.9; }
+  .grid-item .grid-info { position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(to top, rgba(0,0,0,0.9), transparent); padding: 16px 12px 10px; color: #fff; }
+  .grid-item .g-title { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .grid-item .g-code { font-size: 12px; opacity: 0.8; display: flex; align-items: center; gap: 6px; }
+  .pagination { height: 80px; display: flex; align-items: center; justify-content: center; gap: 8px; background: #fff; border-top: 1px solid var(--line); }
+  .page-btn { padding: 8px 16px; border: 1px solid var(--line); background: #fff; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; }
+  .page-btn.active { background: var(--brand); color: #fff; border-color: var(--brand); }
+  .page-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* GISTDA Fullscreen Overlay Grid */
+  .gistda-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; padding: 20px; max-width: 1200px; margin: 0 auto; }
+  .gistda-card { background: #fff; border-radius: 12px; overflow: hidden; box-shadow: var(--shadow-md); border: 1px solid var(--line); display: flex; flex-direction: column; }
+  .gistda-header { padding: 12px 16px; background: #f8fafc; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; }
+  .gistda-title { font-weight: 700; font-size: 15px; color: var(--txt); }
+  .gistda-coord { font-size: 12px; color: var(--muted); }
+  .btn-expand { padding: 8px 16px; background: var(--brand); color: #fff; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: 0.2s; }
+  .btn-expand:hover { background: var(--brand-dark); }
+  .gistda-video-wrapper { position: relative; background: #000; aspect-ratio: 16/9; display: flex; align-items: center; justify-content: center; }
+  .gistda-video-wrapper video { width: 100%; height: 100%; object-fit: contain; }
+
+  /* Lightbox */
+  .lightbox { display: none; position: fixed; inset: 0; z-index: 9999; background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(5px); align-items: center; justify-content: center; opacity: 0; transition: opacity 0.3s ease; }
+  .lightbox.active { display: flex; opacity: 1; }
+  .lightbox img { max-width: 95vw; max-height: 90vh; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); object-fit: contain; }
+  .lightbox-close { position: absolute; top: 20px; right: 20px; background: rgba(255, 255, 255, 0.2); border: none; color: white; width: 44px; height: 44px; border-radius: 50%; font-size: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.2s, transform 0.2s; }
+  .lightbox-close:hover { background: rgba(255, 255, 255, 0.4); transform: scale(1.1); }
+
+  /* =========================================
+     Mobile (แก้ให้รายการกล้องเลื่อนขึ้นลงได้)
+     ========================================= */
+  @media (max-width: 820px) {
+    html, body { height: var(--app-h); }
+    #app { display: block; height: var(--app-h); overflow: hidden; }
+    
+    /* ล็อคความสูง Sidebar เท่าพื้นที่มองเห็นจริง (คำนวณจาก JS) */
+    #sidebar { 
+      position: fixed; top: 0; left: 0;
+      width: 88%; max-width: 380px; flex: none;
+      height: var(--app-h);
+      max-height: var(--app-h);
+      z-index: 2000; 
+      transform: translateX(-102%); 
+      box-shadow: 4px 0 24px rgba(0,0,0,0.25); 
+      margin-left: 0; 
+      display: flex; flex-direction: column;
+      background: #fff;
+      backdrop-filter: none;            /* iOS webview: backdrop-filter ทำให้ scroll ค้างได้ */
+      -webkit-backdrop-filter: none;
+    }
+    #sidebar.collapsed { transform: translateX(-102%); }
+    #sidebar.open { transform: none; }
+    #sidebar-toggle { left: 16px !important; z-index: 2100; }
+    
+    #map-wrapper { height: var(--app-h); width: 100%; }
+    
+    #top-panel { 
+      flex: 0 0 auto;
+      max-height: 40vh; 
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    #top-panel.hidden { max-height: 0; }
+    
+    /* รายการกล้อง: กินพื้นที่ที่เหลือ และเลื่อนได้ */
+    #list {
+      flex: 1 1 0;
+      min-height: 0;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior-y: contain;
+      touch-action: pan-y;
+      padding-bottom: 40px;
+    }
+    .cam-item:hover { transform: none; }
+
+    .legend { padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
+    
+    .grid-container { grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(4, 1fr); padding: 10px; gap: 8px; }
+    .gistda-grid { grid-template-columns: 1fr; padding: 10px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <button id="sidebar-toggle" title="ซ่อน/แสดงแถบด้านข้าง">◀</button>
+
+  <aside id="sidebar">
+    <div id="top-panel">
+      <header>
+        <div class="header-text">
+          <h1>ศูนย์ข้อมูลน้ำหาดใหญ่</h1>
+          <div id="clock">กำลังโหลดเวลา...</div>
+        </div>
+        <button id="refresh" title="โหลดข้อมูลกล้องใหม่">⟳ โหลดใหม่</button>
+      </header>
+
+      <div class="action-bar">
+        <button class="btn-action btn-blue" onclick="openWaterView()">💧 สถานการณ์น้ำ คลองอู่ตะเภา</button>
+        <button class="btn-action btn-orange" onclick="openGistdaView()">📹 กล้องชายฝั่ง จีสด้า</button>
+      </div>
+
+      <div id="weather-section">
+        <div id="current-weather-container" class="current-weather">
+          <div class="cw-icon">⏳</div>
+          <div><div class="cw-temp">--°C</div><div class="cw-desc">กำลังโหลด...</div></div>
+        </div>
+        <div id="forecast-wrapper" class="forecast-wrapper"></div>
+      </div>
+
+      <div class="toolbar">
+        <div class="search-box">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+          <input id="q" type="search" placeholder="ค้นหาชื่อจุด / รหัสกล้อง...">
+        </div>
+        <span id="count" onclick="openMultiview()" title="ดูภาพรวมทุกกล้อง">–</span>
+      </div>
+    </div>
+
+    <button id="toggle-top-panel">▲ ซ่อนข้อมูลส่วนบน</button>
+    
+    <!-- รายการกล้อง (ส่วนนี้เลื่อนขึ้นลงได้) -->
+    <ul id="list"></ul>
+    
+    <div class="legend">
+      <span><i class="dot" style="background:#16a34a"></i> ปกติ</span>
+      <span><i class="dot" style="background:#dc2626"></i> ไฟฟ้าขัดข้อง</span>
+      <span><i class="dot" style="background:#9ca3af"></i> ข้อมูลเก่า</span>
+      <span><i class="dot" style="background:#ea580c"></i> กล้อง จีสด้า</span>
+    </div>
+  </aside>
+
+  <div id="map-wrapper">
+    <div id="map"></div>
+    <div class="layer-btn" id="layer-btn">🗺️</div>
+    <div class="layer-panel" id="layer-panel">
+      <div class="layer-header">
+        <strong>ชั้นข้อมูล</strong>
+        <button class="layer-close" id="layer-close">✕</button>
+      </div>
+      <h4>แผนที่พื้นฐาน</h4>
+      <label><input type="radio" name="base" value="google" checked> 🛰️ Google Hybrid</label>
+      <label><input type="radio" name="base" value="topo"> ⛰️ OpenTopoMap</label>
+      <label><input type="radio" name="base" value="dark"> 🌃 แบบมืด (Dark)</label>
+      <h4 style="margin-top:12px;">เลเยอร์ซ้อนทับ</h4>
+      <label><input type="checkbox" id="layer-radar" checked> เรดาร์น้ำฝน</label>
+      <div class="radar-slider-box" id="radar-slider-container">
+        <input type="range" id="radar-opacity-slider" min="0" max="1" step="0.05" value="0.7">
+      </div>
+    </div>
+  </div>
+
+  <!-- Water Overlay -->
+  <div id="water-overlay" class="full-overlay">
+    <div class="overlay-header">
+      <h2>💧 รายงานสถานการณ์น้ำ คลองอู่ตะเภา</h2>
+      <button class="btn-close" onclick="closeWaterView()">✕</button>
+    </div>
+    <div class="overlay-content">
+      <iframe src="https://hyd-app-db.rid.go.th/SVG/flow_water.html?svg=hydro8_637159780458091581" title="สถานการณ์น้ำ"></iframe>
+    </div>
+  </div>
+
+  <!-- GISTDA Overlay -->
+  <div id="gistda-overlay" class="full-overlay">
+    <div class="overlay-header">
+      <h2>📹 กล้องชายฝั่ง จีสด้า (GISTDA)</h2>
+      <button class="btn-close" onclick="closeGistdaView()">✕</button>
+    </div>
+    <div class="overlay-content" style="background: #f8fafc;">
+      <div class="gistda-grid">
+        <!-- กล้อง สทิงพระ -->
+        <div class="gistda-card">
+          <div class="gistda-header">
+            <div>
+              <div class="gistda-title">กล้องจีสด้า สทิงพระ</div>
+              <div class="gistda-coord">📍 7.47997, 100.44403</div>
+            </div>
+            <button class="btn-expand" onclick="expandVideo('gistda-video-overlay-1')">⛶ ขยายเต็มจอ</button>
+          </div>
+          <div class="gistda-video-wrapper">
+            <video id="gistda-video-overlay-1" controls autoplay muted playsinline></video>
+          </div>
+        </div>
+        
+        <!-- กล้อง สงขลา -->
+        <div class="gistda-card">
+          <div class="gistda-header">
+            <div>
+              <div class="gistda-title">กล้องจีสด้า สงขลา</div>
+              <div class="gistda-coord">📍 7.18134, 100.62294</div>
+            </div>
+            <button class="btn-expand" onclick="expandVideo('gistda-video-overlay-2')">⛶ ขยายเต็มจอ</button>
+          </div>
+          <div class="gistda-video-wrapper">
+            <video id="gistda-video-overlay-2" controls autoplay muted playsinline></video>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Multiview Overlay -->
+  <div id="multiview-overlay" class="full-overlay">
+    <div class="overlay-header">
+      <h2>📺 ภาพรวมกล้อง CCTV (Multiview)</h2>
+      <button class="btn-close" onclick="closeMultiview()">✕</button>
+    </div>
+    <div class="grid-container" id="multiview-grid"></div>
+    <div class="pagination" id="multiview-pagination"></div>
+  </div>
+
+  <!-- Lightbox for Full Image -->
+  <div id="lightbox" class="lightbox" onclick="closeLightbox(event)">
+    <button class="lightbox-close" onclick="closeLightbox(event)">✕</button>
+    <img id="lightbox-img" src="" alt="Full view" onclick="event.stopPropagation()">
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+
+<script>
+/* =========================================================
+   0) VIEWPORT FIX (มือถือ / เบราว์เซอร์ในแอป)
+   ตั้งความสูงให้เท่าพื้นที่ที่มองเห็นจริง เพื่อให้ list เลื่อนถึงรายการล่างสุด
+   ========================================================= */
+function setAppHeight(){
+    const h = (window.visualViewport ? window.visualViewport.height : window.innerHeight);
+    document.documentElement.style.setProperty('--app-h', Math.round(h) + 'px');
+    if (typeof fitList === 'function') fitList();
+}
+setAppHeight();
+window.addEventListener('resize', setAppHeight);
+window.addEventListener('orientationchange', () => setTimeout(setAppHeight, 200));
+if (window.visualViewport) window.visualViewport.addEventListener('resize', setAppHeight);
+
+/* =========================================================
+   1) CONFIG & CONSTANTS
+   ========================================================= */
+const API_CAMS = 'https://hatyaicityclimate.org/api/flood/cams';
+const STALE_MINUTES = 120;
+const LAT = 7.0084; const LON = 100.4767;
+
+/* =========================================================
+   2) WEATHER (Open-Meteo)
+   ========================================================= */
+const wmoWeatherMap = {
+    0:{t:"ฟ้าแจ่มใส",i:"☀️"},1:{t:"ฟ้าโปร่ง",i:"🌤️"},2:{t:"เมฆบางส่วน",i:"⛅"},3:{t:"เมฆครึ้ม",i:"☁️"},
+    45:{t:"หมอกหนา",i:"🌫️"},48:{t:"หมอกน้ำค้างแข็ง",i:"🌫️"},51:{t:"ฝนปรอยๆ เบาๆ",i:"🌧️"},
+    53:{t:"ฝนปรอยๆ ปานกลาง",i:"🌧️"},55:{t:"ฝนปรอยๆ ตกหนัก",i:"🌧️"},61:{t:"ฝนตกเบา",i:"🌧️"},
+    63:{t:"ฝนตกปานกลาง",i:"🌧️"},65:{t:"ฝนตกหนัก",i:"🌧️"},80:{t:"ฝนซู่ตกเบา",i:"🌦️"},
+    81:{t:"ฝนซู่ตกปานกลาง",i:"🌦️"},82:{t:"ฝนซู่ตกหนักมาก",i:"⛈️"},95:{t:"พายุฝนฟ้าคะนอง",i:"⛈️"},
+    96:{t:"พายุฝนและลูกเห็บตก",i:"⛈️"},99:{t:"พายุฝนฟ้าคะนองรุนแรง",i:"⛈️"}
+};
+function formatDate(d){ return new Date(d).toLocaleDateString('th-TH',{day:'numeric',month:'short'}); }
+async function fetchWeather(){
+    try{
+        const url=`https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&current_weather=true&daily=weather_code,temperature_2m_max,temperature_2m_min,rain_sum&timezone=Asia%2FBangkok&forecast_days=7`;
+        const res=await fetch(url); if(!res.ok) throw new Error(res.status);
+        const data=await res.json();
+        if(data.daily && data.current_weather){ renderCurrent(data.current_weather); renderForecast(data.daily); }
+    }catch(e){ document.getElementById('current-weather-container').innerHTML=`<div class="cw-icon">❌</div><div><div class="cw-temp" style="color:#ef4444;font-size:18px;">โหลดไม่สำเร็จ</div></div>`; }
+}
+function renderCurrent(c){
+    const w=wmoWeatherMap[c.weathercode]||{t:"ไม่ทราบ",i:"🌥️"};
+    document.getElementById('current-weather-container').innerHTML=`
+        <div class="cw-icon">${w.i}</div>
+        <div><div class="cw-temp">${c.temperature}°C</div><div class="cw-desc">${w.t} (ลม ${c.windspeed} กม/ชม)</div></div>`;
+}
+function renderForecast(d){
+    const wrap=document.getElementById('forecast-wrapper'); wrap.innerHTML='';
+    for(let i=0;i<d.time.length;i++){
+        const date=i===0?'วันนี้':formatDate(d.time[i]);
+        const w=wmoWeatherMap[d.weather_code[i]]||{t:"เมฆ/ฝน",i:"🌦️"};
+        wrap.innerHTML+=`<div class="forecast-card"><div class="date">${date}</div><div class="icon">${w.i}</div><div class="temp"><span class="temp-max">${d.temperature_2m_max[i]}°</span> / <span class="temp-min">${d.temperature_2m_min[i]}°</span></div><div class="rain">💧 ${d.rain_sum[i]} มม.</div></div>`;
+    }
+}
+fetchWeather();
+
+/* =========================================================
+   3) FALLBACK CAMS
+   ========================================================= */
+const FALLBACK_RAW=[
+[1,'S8','hatyainai','สะพานข้างที่ว่าการ อ.หาดใหญ่','',7.002231,100.455775,'สำนักงานทรัพยากรน้ำภาค 8','27 ต.ค. 69','17:57','2026-10-27 17:57:32'],
+[3,'S2','bangsala','สะพานบางศาลา','',6.93120684682416,100.439536371,'SCCCRN','27 ต.ค. 69','17:55','2026-10-27 17:55:56'],
+[9,'S1','muangkong','สะพานม่วงก็อง','',6.823193,100.438272,'SCCCRN','27 ต.ค. 69','17:56','2026-10-27 17:56:33'],
+[22,'S9','road30m','ถนนราษฎร์ยินดี (เหล็กใต้ 30 เมตร)','',7.00689794,100.48097271,'SCCCRN','27 ต.ค. 69','17:56','2026-10-27 17:56:09'],
+[29,'S6','klongwha','สี่แยกคลองหวะ','',6.9753329989275,100.47989941,'SCCCRN','27 ต.ค. 69','17:57','2026-10-27 17:57:45'],
+[40,'S4','patongkn','ท้ายวัดควนเนียง ต.พะตง','',6.83499948545277,100.49879698,'SCCCRN','27 ต.ค. 69','17:56','2026-10-27 17:56:11'],
+[44,'S7','klongwha2','สะพานประชาอุทิศ(คลองหวะ)','',6.98727543352636,100.47408516,'กรมชลประทาน','27 ต.ค. 69','17:58','2026-10-27 17:58:22'],
+[46,'S5','tunglung','ป้อม ตร.ตลาดทุ่งลุง','',6.85511405444788,100.47061833,'SCCCRN','27 ต.ค. 69','17:57','2026-10-27 17:57:10'],
+[48,'S3','khuankhirat','ควนขี้แรด ต.พะตง','',6.82427734588967,100.54223098,'SCCCRN','27 ต.ค. 69','17:56','2026-10-27 17:56:46'],
+[49,'K06','khtwinburana','สะพานซอยถวิลบูรณะ','',6.97289737941253,100.49685804,'เทศบาลเมืองคอหงส์','27 ต.ค. 69','17:57','2026-10-27 17:57:35'],
+[50,'K05','khnailhong','ปากซอยนายหลง ปลักธง 1','',6.97345257822603,100.50200556,'เทศบาลเมืองคอหงส์','27 ต.ค. 69','17:57','2026-10-27 17:57:36'],
+[51,'K04','khtaisoi','ท้ายซอยถนนปลักธง','',6.98254505476028,100.4980963,'เทศบาลเมืองคอหงส์','27 ต.ค. 69','17:58','2026-10-27 17:58:11'],
+[52,'K02','khklongr6','ต้นคลองเรียน-คลอง ร.6','',6.99482859439554,100.5011883,'เทศบาลเมืองคอหงส์','27 ต.ค. 69','17:57','2026-10-27 17:57:59'],
+[53,'K07','khpholpichaihu','ถนนพลพิชัย (หน้า ม.หาดใหญ่)','',6.98161984487817,100.469922,'เทศบาลเมืองคอหงส์','27 ต.ค. 69','17:58','2026-10-27 17:58:12'],
+[54,'K10','khpookong','ถนนอนุสรณ์ปู่คง','',7.04471734184063,100.50049802,'เทศบาลเมืองคอหงส์','27 ต.ค. 69','17:58','2026-10-27 17:58:13'],
+[55,'K09','khparinyavillage','ริมคลอง ร.5 ท้ายซอย ม.ปริญญา','',7.0419274234014,100.4933684,'เทศบาลเมืองคอหงส์','27 ต.ค. 69','17:57','2026-10-27 17:57:38'],
+[56,'K01','khgamling','อ่างเก็บน้ำแก้มลิงคลองเรียน','',6.99511248095101,100.51211168,'เทศบาลเมืองคอหงส์','27 ต.ค. 69','17:58','2026-10-27 17:58:01'],
+[57,'K08','khkarnjanavanij6','ริมคลอง ร.5 ท้ายซอยกาญจนวนิช 6','ไฟฟ้าขัดข้อง',7.03215623656719,100.4906617,'เทศบาลเมืองคอหงส์','27 มี.ค. 69','03:10','2026-03-27 03:10:39'],
+[58,'K03','khsoi1plugtong','ถนนปลักธง(ป้อม อปพร.)','ไฟฟ้าขัดข้อง',6.98616213695795,100.4945347,'เทศบาลเมืองคอหงส์','27 มี.ค. 69','03:10','2026-03-27 03:10:40'],
+[60,'S10','klongetum','คลองอิตำ ต.ทุ่งตำเสา','',6.97538339800494,100.36786114,'SCCCRN','27 ต.ค. 69','17:55','2026-10-27 17:55:48'],
+[61,'S11','klongnon','คลองนนท์ ต.ควนลัง','',6.98375736707964,100.4198246,'SCCCRN','27 ต.ค. 69','17:56','2026-10-27 17:56:17'],
+[62,'I2','nhakaun','ประตูระบายน้ำ คลอง ร.1','',6.9859383,100.4589649,'กรมชลประทาน','27 ต.ค. 69','17:57','2026-10-27 17:57:40'],
+[63,'I3','khlongs1r1','ประตูระบายน้ำคลองชลประทาน','',7.0085673,100.44212,'กรมชลประทาน','27 ต.ค. 69','17:57','2026-10-27 17:57:50'],
+[64,'I4','bangyheeus','ประตูระบายน้ำบ้านบางหยี(หน้า)','',7.127922,100.4334709,'กรมชลประทาน','27 ต.ค. 69','17:57','2026-10-27 17:57:41'],
+[65,'I5','bangyheeds','ประตูระบายน้ำบ้านบางหยี(หลัง)','',7.1278599,100.43395,'กรมชลประทาน','27 ต.ค. 69','17:58','2026-10-27 17:58:27'],
+[66,'I1','utapao','ประตูระบายน้ำ คลองอู่ตะเภา','ไฟฟ้าขัดข้อง',6.9882408,100.4618168,'กรมชลประทาน','10 เม.ย. 69','20:36','2026-04-10 20:36:31'],
+[67,'S12','banghak','บางหัก','',7.011591,100.453763,'SCCCRN','27 ต.ค. 69','17:56','2026-10-27 17:56:04'],
+[68,'S13','kalyanamit','อุโมงค์กัลยาณมิตร','',7.017221,100.466135,'SCCCRN','27 ต.ค. 69','17:55','2026-10-27 17:55:42'],
+[69,'S14','kuanhin','บ้านควนหิน ต.พะวง','',7.100897,100.56769,'SCCCRN','27 ต.ค. 69','17:55','2026-10-27 17:55:51'],
+[72,'CC02','citycam02','City Camera 2','',null,null,'','27 ต.ค. 69','17:58','2026-10-27 17:58:14'],
+[75,'DW01','tunglan','สะพานพะตงทุ่งลาน','',6.856416,100.464361,'สำนักงานทรัพยากรน้ำภาค 8','27 ต.ค. 69','17:57','2026-10-27 17:57:43'],
+[76,'S16','thammanoonvithi','แยกถนนธรรมนูญวิถี','',7.00515,100.480632,'SCCCRN','27 ต.ค. 69','17:57','2026-10-27 17:57:44'],
+[77,'S17','golfclub','หน้าสนามกอล์ฟคอหงส์','',7.027406,100.501217,'SCCCRN','27 ต.ค. 69','17:57','2026-10-27 17:57:45'],
+[78,'S18','chanwirot','จันทร์วิโรจน์','',6.993394,100.472773,'','27 ต.ค. 69','17:55','2026-10-27 17:55:45'],
+[79,'S19','phruphlikhwai','พรุพลีควาย','',6.969377,100.557857,'','27 ต.ค. 69','17:58','2026-10-27 17:58:30'],
+[80,'S020','banho','บ้านโฮ๊ะ','',6.96217,100.32056,'','27 ต.ค. 69','17:56','2026-10-27 17:56:07'],
+[81,'S021','tharae','ท่าแร่','',6.98285,100.34034,'','27 ต.ค. 69','17:56','2026-10-27 17:56:46'],
+[82,'S022','salalungthong','ศาลาลุงทอง','',7.000601,100.456454,'','27 ต.ค. 69','17:56','2026-10-27 17:56:47'],
+[83,'S023','sriphuwanart','อุโมงค์ถนนศรีภูวนารถ','',6.997437,100.467089,'','27 ต.ค. 69','17:58','2026-10-27 17:58:06'],
+[84,'S024','bangklam','คลองบางกล่ำ','',7.060519,100.453527,'','27 ต.ค. 69','17:56','2026-10-27 17:56:22']
+];
+const FALLBACK=FALLBACK_RAW.map(r=>({cameraId:r[0],code:r[1],name:r[2],title:r[3],statusMsg:r[4]||'',location:{latitude:r[5],longitude:r[6]},sponsorName:r[7]||'',photo:`https://hatyaicityclimate.org/floodphoto/last/${r[2]}.jpg`,date:r[8],time:r[9],atDate:r[10]}));
+
+/* =========================================================
+   4) MAP & LAYERS
+   ========================================================= */
+const map=L.map('map',{zoomControl:false,preferCanvas:true});
+L.control.zoom({position:'bottomright'}).addTo(map);
+
+const googleHybrid=L.tileLayer('https://{s}.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}',{maxZoom:20,subdomains:['mt0','mt1','mt2','mt3'],attribution:'© Google Maps'});
+const openTopo=L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{maxZoom:17,attribution:'© OpenTopoMap'});
+const esriDark=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',{maxZoom:16,attribution:'© Esri'});
+
+googleHybrid.addTo(map);
+
+const radarUrl='https://semet.uk/loop/SKLLoop.gif';
+const radarBounds=[[6.074166,99.402328],[8.297372,101.484333]];
+const radarOverlay=L.imageOverlay(radarUrl,radarBounds,{opacity:0.7,alt:'Radar'}).addTo(map);
+
+map.fitBounds(radarBounds,{padding:[0,0]});
+setTimeout(()=>{map.invalidateSize();map.fitBounds(radarBounds,{padding:[0,0]});},500);
+
+// Custom Layer Menu Logic
+const layerBtn = document.getElementById('layer-btn');
+const layerPanel = document.getElementById('layer-panel');
+const layerClose = document.getElementById('layer-close');
+
+layerBtn.addEventListener('click', () => layerPanel.classList.toggle('active'));
+layerClose.addEventListener('click', () => layerPanel.classList.remove('active'));
+
+// Base Layers Listener
+document.querySelectorAll('input[name="base"]').forEach(radio => {
+    radio.addEventListener('change', (e) => {
+        map.removeLayer(googleHybrid); map.removeLayer(openTopo); map.removeLayer(esriDark);
+        if (e.target.value === 'google') googleHybrid.addTo(map);
+        if (e.target.value === 'topo') openTopo.addTo(map);
+        if (e.target.value === 'dark') esriDark.addTo(map);
+    });
+});
+
+// Radar Listener & Slider
+const radarChk = document.getElementById('layer-radar');
+const sliderContainer = document.getElementById('radar-slider-container');
+const opacitySlider = document.getElementById('radar-opacity-slider');
+
+radarChk.addEventListener('change', (e) => {
+    if (e.target.checked) { map.addLayer(radarOverlay); sliderContainer.classList.remove('disabled'); }
+    else { map.removeLayer(radarOverlay); sliderContainer.classList.add('disabled'); }
+});
+opacitySlider.addEventListener('input', (e) => radarOverlay.setOpacity(parseFloat(e.target.value)));
+
+L.control.scale({imperial:false,position:'bottomleft'}).addTo(map);
+const cluster=L.markerClusterGroup({showCoverageOnHover:false,maxClusterRadius:50,disableClusteringAtZoom:16}).addTo(map);
+
+/* =========================================================
+   5) HELPERS & ICONS
+   ========================================================= */
+const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const ICONS={};
+
+// ไอคอนกล้องปกติ (จุดกลม)
+function pinIcon(color){ 
+    if(!ICONS[color]) ICONS[color]=L.divIcon({
+        className:'cam-pin',
+        html:`<div style="width:18px;height:18px;border-radius:50%;background:${color};border:3px solid #fff;box-shadow:0 0 0 2px rgba(0,0,0,.18),0 2px 6px rgba(0,0,0,.35);"></div>`,
+        iconSize:[18,18],iconAnchor:[9,9],popupAnchor:[0,-10]
+    }); 
+    return ICONS[color]; 
+}
+
+// ไอคอนพิเศษสำหรับ GISTDA (รูปกล้องสีส้ม)
+function gistdaIcon(){ 
+    if(!ICONS['gistda']) ICONS['gistda']=L.divIcon({
+        className:'gistda-pin',
+        html:`<div style="background:#ea580c; width:28px; height:28px; border-radius:8px; display:flex; align-items:center; justify-content:center; border:2px solid #fff; box-shadow:0 2px 6px rgba(0,0,0,.4); color:white; font-size:14px;">📹</div>`,
+        iconSize:[28,28], iconAnchor:[14,14], popupAnchor:[0,-14]
+    }); 
+    return ICONS['gistda']; 
+}
+
+function parseDate(s){ if(!s) return null; const d=new Date(String(s).replace(' ','T')); return isNaN(d)?null:d; }
+function statusOf(c){ if(c.statusMsg&&c.statusMsg.trim()) return {color:'#dc2626',label:c.statusMsg.trim()}; const d=parseDate(c.atDate); if(d&&(Date.now()-d.getTime())/60000>STALE_MINUTES) return {color:'#9ca3af',label:'ข้อมูลไม่อัปเดต'}; return {color:'#16a34a',label:'ปกติ'}; }
+function imgUrl(c){ return c.photo?c.photo+'?t='+encodeURIComponent(c.atDate||Date.now()):''; }
+
+// Lightbox
+function openLightbox(url) {
+    const lightbox = document.getElementById('lightbox');
+    const img = document.getElementById('lightbox-img');
+    img.src = url;
+    lightbox.classList.add('active');
+}
+function closeLightbox(e) {
+    if(e) e.stopPropagation();
+    const lightbox = document.getElementById('lightbox');
+    lightbox.classList.remove('active');
+    document.getElementById('lightbox-img').src = '';
+}
+
+// Video Expand (For Fullscreen Overlay cards)
+function expandVideo(videoId) {
+    const video = document.getElementById(videoId);
+    if (video.requestFullscreen) video.requestFullscreen();
+    else if (video.webkitRequestFullscreen) video.webkitRequestFullscreen();
+    else if (video.msRequestFullscreen) video.msRequestFullscreen();
+}
+
+/* =========================================================
+   6) POPUP HTML
+   ========================================================= */
+function popupHtml(c){
+    const st=statusOf(c); 
+    const isLive=(c.cameraId===1||c.code==='S8');
+    const liveUrl='http://live:Live2025!@ta200304.dyndns.info:5001/axis-cgi/mjpg/video.cgi';
+    
+    let btnHtml = '';
+    if(isLive && c.photo) {
+        btnHtml = `<div class="pop-btn-wrap" style="margin-top:12px;"><a class="pop-btn live-btn" href="${liveUrl}" target="_blank" title="หากภาพไม่ขึ้น ให้เปิดในแท็บใหม่">🔴 ดูภาพสด (Live)</a></div>`;
+    }
+
+    return `<div class="pop">
+        <div class="pop-title">${esc(c.title)}</div>
+        ${c.photo ? `<img class="pop-img" src="${esc(imgUrl(c))}" onclick="openLightbox('${esc(c.photo)}')" onerror="this.style.display='none'">` : ''}
+        ${c.lat&&c.lng?`<div class="pop-coord">📍 ${c.lat.toFixed(5)}, ${c.lng.toFixed(5)}</div>`:''}
+        <div class="pop-row"><span class="badge" style="background:${st.color}">${esc(st.label)}</span><span class="code">${esc(c.code)}</span></div>
+        <div class="pop-time">🕒 ${esc(c.date)} ${esc(c.time)} น.</div>
+        ${c.sponsorName?`<div style="font-size:12px;color:var(--muted);margin-top:4px;">📷 ${esc(c.sponsorName)}</div>`:''}
+        ${btnHtml}
+    </div>`;
+}
+
+function gistdaPopupHtml(title, lat, lng, url, videoId) {
+    return `<div class="gistda-popup">
+        <div class="pop-title">📹 ${title}</div>
+        <div class="pop-coord" style="margin-bottom: 8px;">📍 ${lat}, ${lng}</div>
+        <div class="gistda-video-box">
+            <video id="${videoId}" controls autoplay muted playsinline></video>
+        </div>
+        <div class="gistda-note">*หากวิดีโอไม่เล่น ให้ลองกด Play อีกครั้ง</div>
+    </div>`;
+}
+
+/* =========================================================
+   7) CAMERAS RENDER & LIST
+   ========================================================= */
+let ALL=[]; let currentPage=1; const itemsPerPage=8;
+
+function normalize(x){ return {cameraId:x.cameraId,code:x.code||'',name:x.name||'',title:x.title||x.name||'ไม่ระบุชื่อ',statusMsg:x.statusMsg||'',lat:(x.location?.latitude!=null)?+x.location.latitude:null,lng:(x.location?.longitude!=null)?+x.location.longitude:null,sponsorName:x.sponsorName||'',photo:x.photo||'',date:x.date||'',time:x.time||'',atDate:x.atDate||'',marker:null}; }
+
+function render(items){
+    ALL=items.map(normalize);
+    ALL.forEach(c=>{
+        if(c.lat===null||c.lng===null) return;
+        c.marker=L.marker([c.lat,c.lng],{icon:pinIcon(statusOf(c).color),title:c.title,riseOnHover:true}).bindPopup(popupHtml(c),{maxWidth:320});
+        c.marker.on('popupopen',e=>{ const img=e.popup.getElement()?.querySelector('.pop-img'); if(img&&c.photo&&!img.src.includes('video.cgi')) img.src=imgUrl(c); });
+    });
+    applyFilter(document.getElementById('q').value);
+}
+
+function buildList(list){
+    const ul=document.getElementById('list'); ul.innerHTML='';
+    if(!list.length){ ul.innerHTML='<li class="empty">ไม่พบกล้องที่ตรงกับคำค้น</li>'; return; }
+    const frag=document.createDocumentFragment();
+    list.forEach(c=>{
+        const st=statusOf(c); const li=document.createElement('li'); li.className='cam-item';
+        li.innerHTML=`${c.photo?`<img class="thumb" loading="lazy" src="${esc(imgUrl(c))}" onerror="this.style.visibility='hidden'">`:`<div class="thumb"></div>`}<div class="meta"><div class="name">${esc(c.title)}</div><div class="sub"><i class="dot" style="background:${st.color}"></i>${esc(c.code)} · ${esc(c.time)} น.</div></div>`;
+        li.addEventListener('click',()=>focusCam(c)); frag.appendChild(li);
+    });
+    ul.appendChild(frag);
+}
+
+function applyFilter(q){
+    const s=(q||'').trim().toLowerCase();
+    const list=ALL.filter(c=>!s||(c.title+' '+c.name+' '+c.code).toLowerCase().includes(s));
+    cluster.clearLayers(); list.forEach(c=>{ if(c.marker) cluster.addLayer(c.marker); });
+    buildList(list); document.getElementById('count').textContent=list.length+' กล้อง';
+}
+
+function focusCam(c){
+    if(window.innerWidth<=820){ document.getElementById('sidebar').classList.remove('open'); document.getElementById('sidebar-toggle').classList.add('collapsed'); document.getElementById('sidebar-toggle').textContent='☰'; }
+    if(!c.marker){ alert('กล้องนี้ไม่มีพิกัดบนแผนที่'); return; }
+    cluster.zoomToShowLayer(c.marker,()=>{ map.flyTo(c.marker.getLatLng(),Math.max(map.getZoom(),16),{duration:.6}); c.marker.openPopup(); });
+}
+
+/* =========================================================
+   8) GISTDA MAP MARKERS
+   ========================================================= */
+let hlsMap1, hlsMap2;
+
+const gistda1 = L.marker([7.47997, 100.44403], {icon: gistdaIcon()}).addTo(map);
+gistda1.bindPopup(gistdaPopupHtml('กล้องจีสด้า สทิงพระ', 7.47997, 100.44403, 'https://coastalradar.gistda.or.th/cctvlive/hls/S027/playlist.m3u8', 'gistda-map-vid-1'), {maxWidth: 320, minWidth: 300});
+
+gistda1.on('popupopen', () => {
+    const video = document.getElementById('gistda-map-vid-1');
+    const url = 'https://coastalradar.gistda.or.th/cctvlive/hls/S027/playlist.m3u8';
+    if (video.canPlayType('application/vnd.apple.mpegurl')) { video.src = url; } 
+    else if (Hls.isSupported()) {
+        hlsMap1 = new Hls(); hlsMap1.loadSource(url); hlsMap1.attachMedia(video);
+    }
+});
+gistda1.on('popupclose', () => { if (hlsMap1) { hlsMap1.destroy(); hlsMap1 = null; } });
+
+const gistda2 = L.marker([7.18134, 100.62294], {icon: gistdaIcon()}).addTo(map);
+gistda2.bindPopup(gistdaPopupHtml('กล้องจีสด้า สงขลา', 7.18134, 100.62294, 'https://coastalradar.gistda.or.th/cctvlive/hls/S029/playlist.m3u8', 'gistda-map-vid-2'), {maxWidth: 320, minWidth: 300});
+
+gistda2.on('popupopen', () => {
+    const video = document.getElementById('gistda-map-vid-2');
+    const url = 'https://coastalradar.gistda.or.th/cctvlive/hls/S029/playlist.m3u8';
+    if (video.canPlayType('application/vnd.apple.mpegurl')) { video.src = url; } 
+    else if (Hls.isSupported()) {
+        hlsMap2 = new Hls(); hlsMap2.loadSource(url); hlsMap2.attachMedia(video);
+    }
+});
+gistda2.on('popupclose', () => { if (hlsMap2) { hlsMap2.destroy(); hlsMap2 = null; } });
+
+/* =========================================================
+   9) LOAD CAMS
+   ========================================================= */
+async function loadCams(){
+    const btn=document.getElementById('refresh'); btn.disabled=true; btn.textContent='⏳ โหลด';
+    try{
+        const res=await fetch(API_CAMS+'?t='+Date.now(),{cache:'no-store'}); if(!res.ok) throw new Error(res.status);
+        const json=await res.json(); let items=json.items||json.data||[];
+        items=items.filter(item=>!String(item.code||'').toUpperCase().startsWith('R'));
+        if(!items.length) throw new Error('No cam data');
+        render(items);
+    }catch(e){ console.warn('Cam API Error:',e.message,'→ Fallback'); render(FALLBACK); }
+    finally{ btn.disabled=false; btn.textContent='⟳ โหลดใหม่'; }
+}
+
+/* =========================================================
+   10) OVERLAYS & CLOCK
+   ========================================================= */
+function openWaterView(){ document.getElementById('water-overlay').classList.add('active'); }
+function closeWaterView(){ document.getElementById('water-overlay').classList.remove('active'); }
+
+let hlsOverlayInstances = {};
+function openGistdaView(){ 
+    document.getElementById('gistda-overlay').classList.add('active'); 
+    
+    if(hlsOverlayInstances['vid1']) { hlsOverlayInstances['vid1'].destroy(); hlsOverlayInstances['vid1'] = null; }
+    if(hlsOverlayInstances['vid2']) { hlsOverlayInstances['vid2'].destroy(); hlsOverlayInstances['vid2'] = null; }
+
+    initGistdaStream('gistda-video-overlay-1', 'https://coastalradar.gistda.or.th/cctvlive/hls/S027/playlist.m3u8', 'vid1');
+    initGistdaStream('gistda-video-overlay-2', 'https://coastalradar.gistda.or.th/cctvlive/hls/S029/playlist.m3u8', 'vid2');
+}
+function closeGistdaView(){ 
+    document.getElementById('gistda-overlay').classList.remove('active'); 
+    document.getElementById('gistda-video-overlay-1').pause();
+    document.getElementById('gistda-video-overlay-2').pause();
+}
+function initGistdaStream(videoId, url, key) {
+    const video = document.getElementById(videoId);
+    if (video.canPlayType('application/vnd.apple.mpegurl')) { video.src = url; } 
+    else if (Hls.isSupported()) {
+        const hls = new Hls(); hls.loadSource(url); hls.attachMedia(video);
+        hlsOverlayInstances[key] = hls;
+    }
+}
+
+function openMultiview(){ if(ALL.length===0) return; currentPage=1; renderMultiview(); document.getElementById('multiview-overlay').classList.add('active'); }
+function closeMultiview(){ document.getElementById('multiview-overlay').classList.remove('active'); }
+
+function renderMultiview(){
+    const grid=document.getElementById('multiview-grid'); grid.innerHTML='';
+    const start=(currentPage-1)*itemsPerPage; const end=start+itemsPerPage;
+    ALL.slice(start,end).forEach(c=>{
+        const st=statusOf(c); const div=document.createElement('div'); div.className='grid-item';
+        div.onclick=()=>{ closeMultiview(); focusCam(c); };
+        div.innerHTML=`${c.photo?`<img src="${esc(imgUrl(c))}" loading="lazy" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9IiMzMzQiLz48dGV4dCB4PSI1MCUiIHk9IjUwJSIgZmlsbD0iI2ZmZiIgZm9udC1zaXplPSIxNCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+RXJyb3I8L3RleHQ+PC9zdmc+'">`:''}<div class="grid-info"><div class="g-title">${esc(c.title)}</div><div class="g-code"><i class="dot" style="background:${st.color}"></i>${esc(c.code)} · ${esc(c.time)} น.</div></div>`;
+        grid.appendChild(div);
+    });
+    renderPagination();
+}
+
+function renderPagination(){
+    const pag=document.getElementById('multiview-pagination'); pag.innerHTML='';
+    const total=Math.ceil(ALL.length/itemsPerPage);
+    const prev=document.createElement('button'); prev.className='page-btn'; prev.textContent='◀ ก่อนหน้า'; prev.disabled=currentPage===1; prev.onclick=()=>{ if(currentPage>1){ currentPage--; renderMultiview(); } }; pag.appendChild(prev);
+    for(let i=1;i<=total;i++){ const btn=document.createElement('button'); btn.className=`page-btn ${i===currentPage?'active':''}`; btn.textContent=i; btn.onclick=()=>{ currentPage=i; renderMultiview(); }; pag.appendChild(btn); }
+    const next=document.createElement('button'); next.className='page-btn'; next.textContent='ถัดไป ▶'; next.disabled=currentPage===total; next.onclick=()=>{ if(currentPage<total){ currentPage++; renderMultiview(); } }; pag.appendChild(next);
+}
+
+function updateClock(){
+    const now=new Date(); const opt={weekday:'long',year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',timeZone:'Asia/Bangkok'};
+    document.getElementById('clock').textContent=now.toLocaleString('th-TH',opt)+' น.';
+}
+
+/* =========================================================
+   11) INIT & EVENTS
+   ========================================================= */
+const sidebar=document.getElementById('sidebar'); const toggleBtn=document.getElementById('sidebar-toggle');
+toggleBtn.addEventListener('click',()=>{
+    const mobile=window.innerWidth<=820;
+    if(mobile){ sidebar.classList.toggle('open'); toggleBtn.classList.toggle('collapsed'); toggleBtn.textContent=sidebar.classList.contains('open')?'◀':'☰'; }
+    else{ sidebar.classList.toggle('collapsed'); toggleBtn.classList.toggle('collapsed'); toggleBtn.textContent=sidebar.classList.contains('collapsed')?'▶':'◀'; setTimeout(()=>map.invalidateSize(),350); }
+});
+if(window.innerWidth<=820){ toggleBtn.textContent='☰'; toggleBtn.classList.add('collapsed'); }
+
+/* ---------- กำหนดความสูงรายการกล้องด้วย JS (มือถือ) ---------- */
+function fitList(){
+    const sb=document.getElementById('sidebar');
+    const list=document.getElementById('list');
+    const legend=sb.querySelector('.legend');
+    if(window.innerWidth>820){ list.style.height=''; list.style.flex=''; return; }
+    const sbRect=sb.getBoundingClientRect();
+    const listTop=list.getBoundingClientRect().top - sbRect.top;
+    const h=Math.max(120, Math.round(sb.clientHeight - listTop - legend.offsetHeight));
+    list.style.flex='none';
+    list.style.height=h+'px';
+}
+window.addEventListener('resize', fitList);
+window.addEventListener('orientationchange', ()=>setTimeout(fitList,250));
+if(window.visualViewport) window.visualViewport.addEventListener('resize', fitList);
+document.getElementById('top-panel').addEventListener('transitionend', fitList);
+setInterval(fitList, 1000);
+setTimeout(fitList, 50);
+
+/* ---------- เลื่อนรายการด้วยนิ้ว (เขียนเอง ใช้ได้แม้เบราว์เซอร์ไม่เลื่อนให้) ---------- */
+(function(){
+    const list=document.getElementById('list');
+    const sb=document.getElementById('sidebar');
+    let active=false, startY=0, startTop=0, lastY=0, lastT=0, vel=0, moved=false, raf=null;
+
+    // เช็คว่านิ้วอยู่บนพื้นที่รายการกล้องหรือไม่ (ดูจากพิกัด ไม่ขึ้นกับว่า element ไหนรับ event)
+    function inList(t){
+        if(window.innerWidth>820) return false;
+        const r=list.getBoundingClientRect();
+        return t.clientX>=r.left && t.clientX<=r.right && t.clientY>=r.top && t.clientY<=r.bottom;
+    }
+
+    // ดักที่ระดับ document (capture) เพื่อให้ได้ event ก่อนใครทั้งหมด
+    document.addEventListener('touchstart', e=>{
+        cancelAnimationFrame(raf);
+        const t=e.touches[0];
+        active = inList(t);
+        if(!active) return;
+        startY=lastY=t.clientY; startTop=list.scrollTop; lastT=e.timeStamp;
+        vel=0; moved=false;
+    }, {passive:true, capture:true});
+
+    document.addEventListener('touchmove', e=>{
+        if(!active) return;
+        const t=e.touches[0];
+        const dy=startY - t.clientY;
+        if(Math.abs(dy)>6) moved=true;
+        e.preventDefault();
+        list.scrollTop = startTop + dy;
+        const dt=e.timeStamp - lastT;
+        if(dt>0) vel=(lastY - t.clientY)/dt;
+        lastY=t.clientY; lastT=e.timeStamp;
+    }, {passive:false, capture:true});
+
+    function end(){
+        if(!active) return;
+        active=false;
+        if(!moved) return;
+        let v=vel*16;
+        const step=()=>{
+            if(Math.abs(v)<0.5) return;
+            const before=list.scrollTop;
+            list.scrollTop += v; v*=0.95;
+            if(list.scrollTop===before) return;
+            raf=requestAnimationFrame(step);
+        };
+        step();
+    }
+    document.addEventListener('touchend', end, {passive:true, capture:true});
+    document.addEventListener('touchcancel', end, {passive:true, capture:true});
+
+    // ถ้าเพิ่งลากนิ้ว ไม่ให้นับเป็นการแตะรายการ
+    list.addEventListener('click', e=>{
+        if(moved){ e.stopPropagation(); e.preventDefault(); moved=false; }
+    }, true);
+})();
+
+// Toggle Top Panel
+const topPanel = document.getElementById('top-panel');
+const toggleTopBtn = document.getElementById('toggle-top-panel');
+toggleTopBtn.addEventListener('click', () => {
+    if (topPanel.classList.contains('hidden')) {
+        topPanel.classList.remove('hidden');
+        toggleTopBtn.textContent = '▲ ซ่อนข้อมูลส่วนบน';
+    } else {
+        topPanel.classList.add('hidden');
+        toggleTopBtn.textContent = '▼ แสดงข้อมูลส่วนบน';
+    }
+    setTimeout(fitList, 350);
+});
+
+document.getElementById('q').addEventListener('input',e=>applyFilter(e.target.value));
+document.getElementById('refresh').addEventListener('click',loadCams);
+
+loadCams(); updateClock(); setInterval(updateClock,1000); setInterval(loadCams,3*60*1000);
+</script>
+  <!-- Cloudflare Web Analytics --><script type='module' src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "c962b2219fbd4431b3fdae3d2714acf8"}'></script><!-- End Cloudflare Web Analytics -->
+</body>
+</html>
