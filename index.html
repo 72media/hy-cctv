@@ -220,7 +220,7 @@
   .rain-legend em { font-style: normal; }
   .rain-note { font-size: 11px; color: var(--muted); }
   .rain-pin-wrap { background: none; border: none; }
-  .rain-pin { min-width: 40px; height: 24px; line-height: 20px; padding: 0 6px; text-align: center; font-size: 12px; font-weight: 700; border: 2px solid #fff; border-radius: 13px; box-shadow: 0 1px 5px rgba(0,0,0,.45); box-sizing: border-box; white-space: nowrap; }
+  .rain-pin { min-width: 30px; height: 20px; line-height: 16px; padding: 0 5px; text-align: center; font-size: 11px; font-weight: 700; border: 2px solid #fff; border-radius: 11px; box-shadow: 0 0 0 1.5px rgba(15,23,42,.75), 0 1px 4px rgba(0,0,0,.5); opacity: .93; box-sizing: border-box; white-space: nowrap; }
   .rain-tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
   .rain-tbl td { padding: 4px 0; }
   .rain-tbl td:last-child { text-align: right; }
@@ -384,7 +384,7 @@
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
         <input id="q" type="search" placeholder="ค้นหาชื่อจุด / รหัสกล้อง...">
       </div>
-      <span id="count" onclick="openMultiview()" title="ดูรวมทุกกล้อง">📺 รวมกล้อง</span>
+      <span id="count" onclick="openMultiview()" title="จำนวนกล้อง · แตะเพื่อดูทุกกล้องพร้อมกัน">📺 –</span>
     </div>
 
     <!-- รายการกล้อง (ส่วนนี้เลื่อนขึ้นลงได้) -->
@@ -749,9 +749,9 @@ function renderRain(fit){
         const icon = L.divIcon({
             className: 'rain-pin-wrap',
             html: `<div class="rain-pin" style="background:${s.bg};color:${s.fg}">${fmtMm(v)}</div>`,
-            iconSize: [46, 26], iconAnchor: [23, 13], popupAnchor: [0, -14]
+            iconSize: [36, 22], iconAnchor: [18, 11], popupAnchor: [0, -12]
         });
-        const m = L.marker([+r.station_lat, +r.station_lon], {icon, zIndexOffset: 1000, title: rainName(r)}).bindPopup(rainPopupHtml(r));
+        const m = L.marker([+r.station_lat, +r.station_lon], {icon, zIndexOffset: -1000, title: rainName(r)}).bindPopup(rainPopupHtml(r));
         RAIN.group.addLayer(m); RAIN.markers[r.station_id] = m; items.push({r, v, s});
     });
     if (!map.hasLayer(RAIN.group)) RAIN.group.addTo(map);
@@ -927,7 +927,7 @@ function applyFilter(q){
     const s=(q||'').trim().toLowerCase();
     const list=ALL.filter(c=>!s||(c.title+' '+c.name+' '+c.code).toLowerCase().includes(s));
     cluster.clearLayers(); list.forEach(c=>{ if(c.marker) cluster.addLayer(c.marker); });
-    buildList(list); document.getElementById('count').textContent='📺 รวมกล้อง';
+    buildList(list); document.getElementById('count').textContent='📺 '+(s?list.length+'/'+ALL.length:ALL.length)+' กล้อง';
 }
 
 function focusCam(c){
