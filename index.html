@@ -418,7 +418,8 @@
       <label><input type="checkbox" id="layer-rain"> 🌧️ ปริมาณฝนสะสม (สงขลา)</label>
       <div class="rain-box" id="rain-box">
         <div class="rain-tabs" id="rain-tabs">
-          <button type="button" data-k="precip_yesterday" class="active">วานนี้</button>
+          <button type="button" data-k="precip_today" class="active">วันนี้</button>
+          <button type="button" data-k="precip_yesterday">วานนี้</button>
           <button type="button" data-k="precip_3days">3 วัน</button>
           <button type="button" data-k="precip_7days">7 วัน</button>
         </div>
@@ -664,11 +665,12 @@ opacitySlider.addEventListener('input', (e) => radarOverlay.setOpacity(parseFloa
    ========================================================= */
 const RAIN = {
     url: 'https://wxmap.tmd.go.th/api/awsrainfall',
+    urlNow: 'https://wxmap.tmd.go.th/api/awsnow',
     province: 'สงขลา',
     names: {52:'สงขลา', 51:'หาดใหญ่ (สนามบิน)', 53:'คอหงส์', 102:'สะเดา', 103:'สทิงพระ',
             3902:'จะนะ (AWS)', 3903:'นาทวี (AWS)', 3904:'สะบ้าย้อย (AWS)', 3938:'เทพา (AWS)'},
-    labels: {precip_yesterday:'วานนี้', precip_3days:'สะสม 3 วัน', precip_7days:'สะสม 7 วัน'},
-    period: 'precip_yesterday',
+    labels: {precip_today:'วันนี้', precip_1hr:'1 ชม.ล่าสุด', precip_yesterday:'วานนี้', precip_3days:'สะสม 3 วัน', precip_7days:'สะสม 7 วัน'},
+    period: 'precip_today',
     rows: [], loadedAt: 0, sig: '', warn: '',
     group: L.featureGroup(), markers: {}
 };
@@ -690,7 +692,12 @@ function rainName(r){
     return RAIN.names[r.station_id] || String(r.station_name_th || r.station_name_en || 'สถานี').replace('สถานีอุตุนิยมวิทยา','').trim();
 }
 function rainDateText(){
-    const d = RAIN.rows[0] && RAIN.rows[0].date; if (!d) return '';
+    const r0 = RAIN.rows[0] || {}, dt = r0.datetime_utc7;
+    if (dt && (RAIN.period === 'precip_today' || !r0.date)){
+        const m = String(dt).match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+        if (m){ const t = new Date(Date.UTC(+m[1], m[2]-1, +m[3])); return t.toLocaleDateString('th-TH', {day:'numeric', month:'short', timeZone:'UTC'}) + ' ' + m[4] + ':' + m[5] + ' น.'; }
+    }
+    const d = r0.date; if (!d) return '';
     const t = new Date(d + 'T00:00:00Z'); if (isNaN(t)) return String(d);
     return t.toLocaleDateString('th-TH', {day:'numeric', month:'short', year:'2-digit', timeZone:'UTC'});
 }
@@ -701,24 +708,29 @@ function rainPopupHtml(r){
     };
     return `<div class="rain-pop">
         <div class="pop-title">🌧️ ${esc(rainName(r))}</div>
-        <table class="rain-tbl">${row('precip_yesterday')}${row('precip_3days')}${row('precip_7days')}</table>
+        <table class="rain-tbl">${row('precip_today')}${row('precip_1hr')}${row('precip_yesterday')}${row('precip_3days')}${row('precip_7days')}</table>
         <div class="gistda-note" style="text-align:left">ข้อมูล ณ ${esc(rainDateText())} · ที่มา: กรมอุตุนิยมวิทยา</div>
     </div>`;
 }
 
 async function loadRain(force){
     const st = document.getElementById('rain-status');
-    if (!force && RAIN.rows.length && Date.now() - RAIN.loadedAt < 10*60*1000) return true;
+    if (!force && RAIN.rows.length && Date.now() - RAIN.loadedAt < 4*60*1000) return true;
     if (!RAIN.rows.length) st.textContent = 'กำลังโหลดข้อมูลฝน...';
     try{
-        const res = await fetch(RAIN.url, {cache:'no-store'});
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        const json = await res.json();
-        const all = Array.isArray(json && json.data) ? json.data : [];
-        const rows = all.filter(r => r.province_name_th === RAIN.province && rainNum(r.station_lat) !== null && rainNum(r.station_lon) !== null);
+        const get = u => fetch(u, {cache:'no-store'}).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+        const [a, n] = await Promise.allSettled([get(RAIN.url), get(RAIN.urlNow)]);
+        const pick = p => (p.status === 'fulfilled' && Array.isArray(p.value && p.value.data) ? p.value.data : [])
+            .filter(r => r.province_name_th === RAIN.province && rainNum(r.station_lat) !== null && rainNum(r.station_lon) !== null);
+        const A = pick(a), N = pick(n), byId = {};
+        A.forEach(r => { byId[r.station_id] = Object.assign({}, r); });
+        N.forEach(r => { byId[r.station_id] = Object.assign(byId[r.station_id] || {}, r, byId[r.station_id] ? {station_name_th: byId[r.station_id].station_name_th} : {}); });
+        const rows = Object.values(byId);
         if (!rows.length) throw new Error('ไม่พบสถานีของจังหวัด');
-        RAIN.rows = rows; RAIN.loadedAt = Date.now(); RAIN.warn = '';
-        RAIN.sig = JSON.stringify(rows.map(r => [r.station_id, r.precip_yesterday, r.precip_3days, r.precip_7days, r.date]));
+        if (!A.length && RAIN.period !== 'precip_today') RAIN.period = 'precip_today';
+        RAIN.warn = !N.length ? 'ไม่มีข้อมูลวันนี้' : (!A.length ? 'ไม่มีข้อมูลย้อนหลัง' : '');
+        RAIN.rows = rows; RAIN.loadedAt = Date.now();
+        RAIN.sig = JSON.stringify(rows.map(r => [r.station_id, r.precip_yesterday, r.precip_3days, r.precip_7days, r.precip_today, r.precip_1hr, r.date]));
         return true;
     }catch(e){
         console.warn('Rain API Error:', e.message);
@@ -783,13 +795,13 @@ document.getElementById('rain-list').addEventListener('click', e => {
     map.flyTo(m.getLatLng(), Math.max(map.getZoom(), 11), {duration:.6});
     setTimeout(() => m.openPopup(), 650);
 });
-// รีเฟรชข้อมูลทุก 10 นาทีเมื่อเปิดชั้นข้อมูลนี้อยู่ (วาดใหม่เฉพาะเมื่อข้อมูลเปลี่ยน จะได้ไม่ปิดป๊อปอัพที่กำลังดู)
+// รีเฟรชข้อมูลทุก 5 นาทีเมื่อเปิดชั้นข้อมูลนี้อยู่ (วาดใหม่เฉพาะเมื่อข้อมูลเปลี่ยน จะได้ไม่ปิดป๊อปอัพที่กำลังดู)
 setInterval(async () => {
     if (!rainChk.checked) return;
     const before = RAIN.sig;
     const ok = await loadRain(true);
     if (ok && rainChk.checked && RAIN.sig !== before) renderRain(false);
-}, 10*60*1000);
+}, 5*60*1000);
 
 L.control.scale({imperial:false,position:'bottomleft'}).addTo(map);
 const cluster=L.markerClusterGroup({showCoverageOnHover:false,maxClusterRadius:50,disableClusteringAtZoom:16}).addTo(map);
