@@ -87,6 +87,25 @@
   .btn-action:hover { transform: translateY(-1px); box-shadow: var(--shadow-lg); }
   .btn-blue { background: linear-gradient(135deg, #3b82f6, #2563eb); color: #fff; }
   .btn-orange { background: linear-gradient(135deg, #f97316, #ea580c); color: #fff; }
+  .btn-teal { background: linear-gradient(135deg, #14b8a6, #0d9488); color: #fff; }
+  .btn-teal .bw-icon { font-size: 26px; line-height: 1; }
+  .btn-teal .bw-text { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.25; text-align: left; }
+  .btn-teal .bw-title { font-size: 14px; font-weight: 700; }
+  .btn-teal .bw-sub { font-size: 12px; font-weight: 500; opacity: 0.95; }
+
+  /* ปอปอัพกราฟอากาศ (meteogram) บนแผนที่ */
+  .leaflet-popup.meteo-popup .leaflet-popup-content { width: min(88vw, 560px) !important; margin: 12px; }
+  .meteo-img-box { background: #0b1220; border-radius: 8px; overflow: hidden; min-height: 120px; display: flex; align-items: center; justify-content: center; color: #cbd5e1; font-size: 13px; text-align: center; }
+  .meteo-img-box img { width: 100%; height: auto; display: block; cursor: zoom-in; }
+
+  /* ดูกราฟขยาย: เลื่อนซ้าย-ขวาได้บนมือถือ */
+  .lightbox.wide { overflow: auto; -webkit-overflow-scrolling: touch; align-items: flex-start; justify-content: flex-start; background: #0b1220; backdrop-filter: none; }
+  .lightbox.wide img { flex: 0 0 auto; max-width: none; max-height: none; width: 960px; height: auto; border-radius: 0; box-shadow: none; margin: 64px 12px 24px; }
+  .lightbox.wide .lightbox-close { position: fixed; z-index: 2; }
+
+  /* ซ่อนไอคอนค้นหาของ iOS (กันไอคอนซ้อนกับของเรา) */
+  #q { -webkit-appearance: none; appearance: none; }
+  #q::-webkit-search-decoration, #q::-webkit-search-cancel-button, #q::-webkit-search-results-button { -webkit-appearance: none; display: none; }
 
   /* Weather */
   #weather-section { padding: 16px; border-bottom: 1px solid var(--line); background: #fff; }
@@ -322,14 +341,13 @@
       <div class="action-bar">
         <button class="btn-action btn-blue" onclick="openWaterView()">💧 สถานการณ์น้ำ คลองอู่ตะเภา</button>
         <button class="btn-action btn-orange" onclick="openGistdaView()">📹 กล้องชายฝั่ง จีสด้า</button>
-      </div>
-
-      <div id="weather-section">
-        <div id="current-weather-container" class="current-weather">
-          <div class="cw-icon">⏳</div>
-          <div><div class="cw-temp">--°C</div><div class="cw-desc">กำลังโหลด...</div></div>
-        </div>
-        <div id="forecast-wrapper" class="forecast-wrapper"></div>
+        <button class="btn-action btn-teal" id="btn-weather" onclick="openMeteogram()">
+          <span class="bw-icon" id="bw-icon">🌦️</span>
+          <span class="bw-text">
+            <span class="bw-title">เช็คสภาพอากาศ</span>
+            <span class="bw-sub" id="bw-sub">กำลังโหลดอุณหภูมิ...</span>
+          </span>
+        </button>
       </div>
     </div>
 
@@ -341,7 +359,7 @@
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
         <input id="q" type="search" placeholder="ค้นหาชื่อจุด / รหัสกล้อง...">
       </div>
-      <span id="count" onclick="openMultiview()" title="ดูภาพรวมทุกกล้อง">–</span>
+      <span id="count" onclick="openMultiview()" title="ดูรวมทุกกล้อง">📺 รวมกล้อง</span>
     </div>
 
     <!-- รายการกล้อง (ส่วนนี้เลื่อนขึ้นลงได้) -->
@@ -428,7 +446,7 @@
   <!-- Multiview Overlay -->
   <div id="multiview-overlay" class="full-overlay">
     <div class="overlay-header">
-      <h2>📺 ภาพรวมกล้อง CCTV (Multiview)</h2>
+      <h2>📺 รวมกล้อง CCTV</h2>
       <button class="btn-close" onclick="closeMultiview()">✕</button>
     </div>
     <div class="grid-container" id="multiview-grid"></div>
@@ -481,27 +499,23 @@ const wmoWeatherMap = {
 function formatDate(d){ return new Date(d).toLocaleDateString('th-TH',{day:'numeric',month:'short'}); }
 async function fetchWeather(){
     try{
-        const url=`https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&current_weather=true&daily=weather_code,temperature_2m_max,temperature_2m_min,rain_sum&timezone=Asia%2FBangkok&forecast_days=7`;
+        const url=`https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&current_weather=true&timezone=Asia%2FBangkok`;
         const res=await fetch(url); if(!res.ok) throw new Error(res.status);
         const data=await res.json();
-        if(data.daily && data.current_weather){ renderCurrent(data.current_weather); renderForecast(data.daily); }
-    }catch(e){ document.getElementById('current-weather-container').innerHTML=`<div class="cw-icon">❌</div><div><div class="cw-temp" style="color:#ef4444;font-size:18px;">โหลดไม่สำเร็จ</div></div>`; }
-}
-function renderCurrent(c){
-    const w=wmoWeatherMap[c.weathercode]||{t:"ไม่ทราบ",i:"🌥️"};
-    document.getElementById('current-weather-container').innerHTML=`
-        <div class="cw-icon">${w.i}</div>
-        <div><div class="cw-temp">${c.temperature}°C</div><div class="cw-desc">${w.t} (ลม ${c.windspeed} กม/ชม)</div></div>`;
-}
-function renderForecast(d){
-    const wrap=document.getElementById('forecast-wrapper'); wrap.innerHTML='';
-    for(let i=0;i<d.time.length;i++){
-        const date=i===0?'วันนี้':formatDate(d.time[i]);
-        const w=wmoWeatherMap[d.weather_code[i]]||{t:"เมฆ/ฝน",i:"🌦️"};
-        wrap.innerHTML+=`<div class="forecast-card"><div class="date">${date}</div><div class="icon">${w.i}</div><div class="temp"><span class="temp-max">${d.temperature_2m_max[i]}°</span> / <span class="temp-min">${d.temperature_2m_min[i]}°</span></div><div class="rain">💧 ${d.rain_sum[i]} มม.</div></div>`;
+        if(data.current_weather){ renderCurrent(data.current_weather); }
+    }catch(e){
+        const sub=document.getElementById('bw-sub');
+        if(sub) sub.textContent='แตะเพื่อดูกราฟพยากรณ์';
     }
 }
+// แสดงอุณหภูมิปัจจุบันเป็นบรรทัดรองในปุ่ม "เช็คสภาพอากาศ"
+function renderCurrent(c){
+    const w=wmoWeatherMap[c.weathercode]||{t:"ไม่ทราบ",i:"🌥️"};
+    document.getElementById('bw-icon').textContent=w.i;
+    document.getElementById('bw-sub').textContent=`${c.temperature}°C · ${w.t} · ลม ${c.windspeed} กม/ชม`;
+}
 fetchWeather();
+setInterval(fetchWeather, 10*60*1000);
 
 /* =========================================================
    3) FALLBACK CAMS
@@ -641,7 +655,7 @@ function openLightbox(url) {
 function closeLightbox(e) {
     if(e) e.stopPropagation();
     const lightbox = document.getElementById('lightbox');
-    lightbox.classList.remove('active');
+    lightbox.classList.remove('active','wide');
     document.getElementById('lightbox-img').src = '';
 }
 
@@ -722,7 +736,7 @@ function applyFilter(q){
     const s=(q||'').trim().toLowerCase();
     const list=ALL.filter(c=>!s||(c.title+' '+c.name+' '+c.code).toLowerCase().includes(s));
     cluster.clearLayers(); list.forEach(c=>{ if(c.marker) cluster.addLayer(c.marker); });
-    buildList(list); document.getElementById('count').textContent='📺 '+list.length+' กล้อง';
+    buildList(list); document.getElementById('count').textContent='📺 รวมกล้อง';
 }
 
 function focusCam(c){
@@ -761,6 +775,48 @@ gistda2.on('popupopen', () => {
     }
 });
 gistda2.on('popupclose', () => { if (hlsMap2) { hlsMap2.destroy(); hlsMap2 = null; } });
+
+/* =========================================================
+   8.1) METEOGRAM (กราฟพยากรณ์อากาศจาก Yr) – ปอปอัพบนแผนที่
+   ========================================================= */
+const METEO_URL = 'https://www.yr.no/en/content/2-1610780/meteogram.svg?mode=dark';
+let meteoPopup = null;
+
+function meteoPopupHtml(){
+    return `<div class="meteo-pop">
+        <div class="pop-title">🌦️ พยากรณ์อากาศ หาดใหญ่</div>
+        <div class="meteo-img-box">
+            <img src="${METEO_URL}" alt="กราฟพยากรณ์อากาศ หาดใหญ่" onclick="openMeteoFull()"
+                 onerror="this.parentNode.textContent='โหลดกราฟไม่สำเร็จ กรุณาลองใหม่อีกครั้ง'">
+        </div>
+        <div class="gistda-note">แตะภาพเพื่อขยาย · ข้อมูลจาก Yr (NRK / สถาบันอุตุนิยมวิทยานอร์เวย์)</div>
+    </div>`;
+}
+
+function openMeteogram(){
+    // มือถือ: ปิดแถบด้านข้างเพื่อให้เห็นแผนที่
+    if(window.innerWidth<=820){
+        document.getElementById('sidebar').classList.remove('open');
+        const tb=document.getElementById('sidebar-toggle');
+        tb.classList.add('collapsed'); tb.textContent='☰';
+    }
+    if(!meteoPopup){
+        meteoPopup = L.popup({maxWidth:560, minWidth:260, className:'meteo-popup', autoPanPadding:[12,70], closeOnClick:false})
+            .setContent(meteoPopupHtml());
+    }
+    meteoPopup.setLatLng([LAT, LON]);
+    map.closePopup();
+    map.flyTo([LAT, LON], Math.max(map.getZoom(), 10), {duration:.6});
+    setTimeout(()=>meteoPopup.openOn(map), 650);
+}
+
+// แตะกราฟเพื่อดูขยายเต็มจอ (มือถือเลื่อนซ้าย-ขวาได้)
+function openMeteoFull(){
+    const lb=document.getElementById('lightbox');
+    document.getElementById('lightbox-img').src=METEO_URL;
+    lb.classList.add('active','wide');
+    lb.scrollTop=0; lb.scrollLeft=0;
+}
 
 /* =========================================================
    9) LOAD CAMS
@@ -874,6 +930,8 @@ setTimeout(fitList, 50);
     // เช็คว่านิ้วอยู่บนพื้นที่รายการกล้องหรือไม่ (ดูจากพิกัด ไม่ขึ้นกับว่า element ไหนรับ event)
     function inList(t){
         if(window.innerWidth>820) return false;
+        // มีหน้าต่างซ้อน (รวมกล้อง / น้ำ / จีสด้า / ดูภาพขยาย) เปิดอยู่ → ไม่ยึดการเลื่อน ปล่อยให้หน้าต่างนั้นเลื่อนเอง
+        if(document.querySelector('.full-overlay.active, .lightbox.active')) return false;
         const r=list.getBoundingClientRect();
         return t.clientX>=r.left && t.clientX<=r.right && t.clientY>=r.top && t.clientY<=r.bottom;
     }
