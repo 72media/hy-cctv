@@ -187,7 +187,9 @@
     background: #fff; width: 240px; border-radius: 12px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.2); padding: 16px;
     display: none; flex-direction: column; gap: 12px;
+    max-height: calc(100% - 90px); overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
   }
+  .layer-panel > * { flex-shrink: 0; }
   .layer-panel.active { display: flex; }
   .layer-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
   .layer-header strong { font-size: 15px; color: var(--txt); }
@@ -199,6 +201,29 @@
   .radar-slider-box { padding-left: 24px; margin-bottom: 4px; transition: opacity 0.2s; }
   .radar-slider-box.disabled { opacity: 0.4; pointer-events: none; }
   .radar-slider-box input[type="range"] { width: 100%; accent-color: var(--brand); cursor: pointer; }
+
+  /* ปริมาณฝนสะสม (TMD) */
+  .rain-box { display: none; flex-direction: column; gap: 8px; }
+  .rain-box.show { display: flex; }
+  .rain-tabs { display: flex; gap: 6px; }
+  .rain-tabs button { flex: 1; padding: 6px 0; border: 1px solid var(--line); background: #f8fafc; border-radius: 8px; font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer; font-family: inherit; }
+  .rain-tabs button.active { background: var(--brand); color: #fff; border-color: var(--brand); }
+  .rain-status { font-size: 12px; color: var(--muted); line-height: 1.4; }
+  .rain-retry { margin-left: 6px; padding: 3px 10px; border: 1px solid var(--brand); background: #fff; color: var(--brand-dark); border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; }
+  .rain-list { list-style: none; margin: 0; padding: 0; }
+  .rain-list li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; font-size: 13px; cursor: pointer; }
+  .rain-list li:hover { background: #f1f5f9; }
+  .rain-list .rain-empty { color: var(--muted); cursor: default; }
+  .rl-val { display: inline-block; min-width: 44px; text-align: center; font-weight: 700; border-radius: 10px; padding: 2px 8px; font-size: 12px; }
+  .rain-legend { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; font-size: 11px; color: var(--muted); }
+  .rain-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 3px; vertical-align: -1px; }
+  .rain-legend em { font-style: normal; }
+  .rain-note { font-size: 11px; color: var(--muted); }
+  .rain-pin-wrap { background: none; border: none; }
+  .rain-pin { min-width: 40px; height: 24px; line-height: 20px; padding: 0 6px; text-align: center; font-size: 12px; font-weight: 700; border: 2px solid #fff; border-radius: 13px; box-shadow: 0 1px 5px rgba(0,0,0,.45); box-sizing: border-box; white-space: nowrap; }
+  .rain-tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .rain-tbl td { padding: 4px 0; }
+  .rain-tbl td:last-child { text-align: right; }
 
   /* Popup (General CCTV) */
   .leaflet-popup-content { margin: 12px; width: 280px !important; font-family: 'Inter', 'Sarabun', sans-serif; }
@@ -389,6 +414,27 @@
       <label><input type="checkbox" id="layer-radar" checked> เรดาร์น้ำฝน</label>
       <div class="radar-slider-box" id="radar-slider-container">
         <input type="range" id="radar-opacity-slider" min="0" max="1" step="0.05" value="0.7">
+      </div>
+      <label><input type="checkbox" id="layer-rain"> 🌧️ ปริมาณฝนสะสม (สงขลา)</label>
+      <div class="rain-box" id="rain-box">
+        <div class="rain-tabs" id="rain-tabs">
+          <button type="button" data-k="precip_yesterday" class="active">วานนี้</button>
+          <button type="button" data-k="precip_3days">3 วัน</button>
+          <button type="button" data-k="precip_7days">7 วัน</button>
+        </div>
+        <div class="rain-status" id="rain-status"></div>
+        <ul class="rain-list" id="rain-list"></ul>
+        <div class="rain-legend">
+          <span><i style="background:#9ca3af"></i>0</span>
+          <span><i style="background:#a7f3d0"></i>&lt;10</span>
+          <span><i style="background:#22c55e"></i>10–35</span>
+          <span><i style="background:#facc15"></i>35–70</span>
+          <span><i style="background:#fb923c"></i>70–100</span>
+          <span><i style="background:#ef4444"></i>100–150</span>
+          <span><i style="background:#a21caf"></i>≥150</span>
+          <em>มม.</em>
+        </div>
+        <div class="rain-note">ข้อมูล: กรมอุตุนิยมวิทยา (TMD) · แตะสถานีเพื่อดูรายละเอียด</div>
       </div>
     </div>
   </div>
@@ -611,6 +657,139 @@ radarChk.addEventListener('change', (e) => {
     else { map.removeLayer(radarOverlay); sliderContainer.classList.add('disabled'); }
 });
 opacitySlider.addEventListener('input', (e) => radarOverlay.setOpacity(parseFloat(e.target.value)));
+
+/* =========================================================
+   4.1) RAIN – ปริมาณฝนสะสมในจังหวัดสงขลา (กรมอุตุนิยมวิทยา)
+   แหล่งข้อมูล: https://wxmap.tmd.go.th/api/awsrainfall
+   ========================================================= */
+const RAIN = {
+    url: 'https://wxmap.tmd.go.th/api/awsrainfall',
+    province: 'สงขลา',
+    names: {52:'สงขลา', 51:'หาดใหญ่ (สนามบิน)', 53:'คอหงส์', 102:'สะเดา', 103:'สทิงพระ',
+            3902:'จะนะ (AWS)', 3903:'นาทวี (AWS)', 3904:'สะบ้าย้อย (AWS)', 3938:'เทพา (AWS)'},
+    labels: {precip_yesterday:'วานนี้', precip_3days:'สะสม 3 วัน', precip_7days:'สะสม 7 วัน'},
+    period: 'precip_yesterday',
+    rows: [], loadedAt: 0, sig: '', warn: '',
+    group: L.featureGroup(), markers: {}
+};
+const rainChk = document.getElementById('layer-rain');
+const rainBox = document.getElementById('rain-box');
+
+const rainNum = x => { const n = Number(x); return (x === null || x === '' || !Number.isFinite(n)) ? null : n; };
+const fmtMm = v => (Number.isInteger(v) ? String(v) : v.toFixed(1));
+function rainStyle(v){
+    if (v <= 0)  return {bg:'#9ca3af', fg:'#ffffff'};
+    if (v < 10)  return {bg:'#a7f3d0', fg:'#064e3b'};
+    if (v < 35)  return {bg:'#22c55e', fg:'#ffffff'};
+    if (v < 70)  return {bg:'#facc15', fg:'#422006'};
+    if (v < 100) return {bg:'#fb923c', fg:'#431407'};
+    if (v < 150) return {bg:'#ef4444', fg:'#ffffff'};
+    return {bg:'#a21caf', fg:'#ffffff'};
+}
+function rainName(r){
+    return RAIN.names[r.station_id] || String(r.station_name_th || r.station_name_en || 'สถานี').replace('สถานีอุตุนิยมวิทยา','').trim();
+}
+function rainDateText(){
+    const d = RAIN.rows[0] && RAIN.rows[0].date; if (!d) return '';
+    const t = new Date(d + 'T00:00:00Z'); if (isNaN(t)) return String(d);
+    return t.toLocaleDateString('th-TH', {day:'numeric', month:'short', year:'2-digit', timeZone:'UTC'});
+}
+function rainPopupHtml(r){
+    const row = k => {
+        const v = rainNum(r[k]); const s = v === null ? {bg:'#e5e7eb', fg:'#374151'} : rainStyle(v);
+        return `<tr><td>${RAIN.labels[k]}</td><td><span class="rl-val" style="background:${s.bg};color:${s.fg}">${v === null ? '–' : fmtMm(v)} มม.</span></td></tr>`;
+    };
+    return `<div class="rain-pop">
+        <div class="pop-title">🌧️ ${esc(rainName(r))}</div>
+        <table class="rain-tbl">${row('precip_yesterday')}${row('precip_3days')}${row('precip_7days')}</table>
+        <div class="gistda-note" style="text-align:left">ข้อมูล ณ ${esc(rainDateText())} · ที่มา: กรมอุตุนิยมวิทยา</div>
+    </div>`;
+}
+
+async function loadRain(force){
+    const st = document.getElementById('rain-status');
+    if (!force && RAIN.rows.length && Date.now() - RAIN.loadedAt < 10*60*1000) return true;
+    if (!RAIN.rows.length) st.textContent = 'กำลังโหลดข้อมูลฝน...';
+    try{
+        const res = await fetch(RAIN.url, {cache:'no-store'});
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const json = await res.json();
+        const all = Array.isArray(json && json.data) ? json.data : [];
+        const rows = all.filter(r => r.province_name_th === RAIN.province && rainNum(r.station_lat) !== null && rainNum(r.station_lon) !== null);
+        if (!rows.length) throw new Error('ไม่พบสถานีของจังหวัด');
+        RAIN.rows = rows; RAIN.loadedAt = Date.now(); RAIN.warn = '';
+        RAIN.sig = JSON.stringify(rows.map(r => [r.station_id, r.precip_yesterday, r.precip_3days, r.precip_7days, r.date]));
+        return true;
+    }catch(e){
+        console.warn('Rain API Error:', e.message);
+        if (RAIN.rows.length){ RAIN.warn = 'อัปเดตไม่สำเร็จ ใช้ข้อมูลเดิม'; return true; }
+        st.innerHTML = '⚠️ โหลดข้อมูลฝนไม่สำเร็จ <button type="button" class="rain-retry" id="rain-retry">ลองใหม่</button>';
+        return false;
+    }
+}
+
+function renderRain(fit){
+    RAIN.group.clearLayers(); RAIN.markers = {};
+    const k = RAIN.period; const items = [];
+    RAIN.rows.forEach(r => {
+        const v = rainNum(r[k]); if (v === null) return;
+        const s = rainStyle(v);
+        const icon = L.divIcon({
+            className: 'rain-pin-wrap',
+            html: `<div class="rain-pin" style="background:${s.bg};color:${s.fg}">${fmtMm(v)}</div>`,
+            iconSize: [46, 26], iconAnchor: [23, 13], popupAnchor: [0, -14]
+        });
+        const m = L.marker([+r.station_lat, +r.station_lon], {icon, zIndexOffset: 1000, title: rainName(r)}).bindPopup(rainPopupHtml(r));
+        RAIN.group.addLayer(m); RAIN.markers[r.station_id] = m; items.push({r, v, s});
+    });
+    if (!map.hasLayer(RAIN.group)) RAIN.group.addTo(map);
+
+    items.sort((a, b) => b.v - a.v);
+    document.getElementById('rain-list').innerHTML = items.length
+        ? items.map(({r, v, s}) => `<li data-id="${r.station_id}"><span>${esc(rainName(r))}</span><span class="rl-val" style="background:${s.bg};color:${s.fg}">${fmtMm(v)}</span></li>`).join('')
+        : '<li class="rain-empty">ไม่มีข้อมูล</li>';
+    document.getElementById('rain-status').textContent =
+        `${RAIN.labels[k]} · ${items.length} สถานี · ข้อมูล ณ ${rainDateText()}` + (RAIN.warn ? ' · ⚠️ ' + RAIN.warn : '');
+    document.querySelectorAll('#rain-tabs button').forEach(b => b.classList.toggle('active', b.dataset.k === k));
+
+    if (fit && RAIN.group.getLayers().length){
+        const b = RAIN.group.getBounds();
+        if (!map.getBounds().contains(b)) map.flyToBounds(b, {padding:[60, 60], maxZoom:10, duration:.6});
+    }
+}
+
+async function enableRain(){
+    rainBox.classList.add('show');
+    const ok = await loadRain(false);
+    if (ok && rainChk.checked) renderRain(true);
+}
+rainChk.addEventListener('change', e => {
+    if (e.target.checked) enableRain();
+    else { rainBox.classList.remove('show'); RAIN.group.remove(); }
+});
+document.getElementById('rain-tabs').addEventListener('click', e => {
+    const b = e.target.closest('button[data-k]'); if (!b) return;
+    RAIN.period = b.dataset.k;
+    document.querySelectorAll('#rain-tabs button').forEach(x => x.classList.toggle('active', x === b));
+    if (RAIN.rows.length) renderRain(false);
+});
+document.getElementById('rain-status').addEventListener('click', e => {
+    if (e.target.id === 'rain-retry') enableRain();
+});
+document.getElementById('rain-list').addEventListener('click', e => {
+    const li = e.target.closest('li[data-id]'); if (!li) return;
+    const m = RAIN.markers[li.dataset.id]; if (!m) return;
+    if (window.innerWidth <= 820) layerPanel.classList.remove('active');
+    map.flyTo(m.getLatLng(), Math.max(map.getZoom(), 11), {duration:.6});
+    setTimeout(() => m.openPopup(), 650);
+});
+// รีเฟรชข้อมูลทุก 10 นาทีเมื่อเปิดชั้นข้อมูลนี้อยู่ (วาดใหม่เฉพาะเมื่อข้อมูลเปลี่ยน จะได้ไม่ปิดป๊อปอัพที่กำลังดู)
+setInterval(async () => {
+    if (!rainChk.checked) return;
+    const before = RAIN.sig;
+    const ok = await loadRain(true);
+    if (ok && rainChk.checked && RAIN.sig !== before) renderRain(false);
+}, 10*60*1000);
 
 L.control.scale({imperial:false,position:'bottomleft'}).addTo(map);
 const cluster=L.markerClusterGroup({showCoverageOnHover:false,maxClusterRadius:50,disableClusteringAtZoom:16}).addTo(map);
@@ -1010,4 +1189,3 @@ loadCams(); updateClock(); setInterval(updateClock,1000); setInterval(loadCams,3
   <!-- Cloudflare Web Analytics --><script type='module' src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "c962b2219fbd4431b3fdae3d2714acf8"}'></script><!-- End Cloudflare Web Analytics -->
 </body>
 </html>
-
