@@ -503,6 +503,9 @@
         </div>
       </div>
       <div class="lay-card">
+        <label class="sw-row"><span class="sw-ic" style="background:#fee2e2">🗺️</span><span class="sw-tx"><b>ขอบเขต จ.สงขลา</b><small id="bnd-sub">เส้นสีแดง ซ้อนบนเรดาร์</small></span><input type="checkbox" class="sw" id="layer-boundary" checked></label>
+      </div>
+      <div class="lay-card">
         <label class="sw-row"><span class="sw-ic" style="background:#dbeafe">🌧️</span><span class="sw-tx"><b>ปริมาณฝนสะสม</b><small>สถานีตรวจวัด จ.สงขลา</small></span><input type="checkbox" class="sw" id="layer-rain"></label>
       <div class="rain-box" id="rain-box">
         <div class="rain-tabs" id="rain-tabs">
@@ -752,6 +755,50 @@ radarChk.addEventListener('change', (e) => {
     else { map.removeLayer(radarOverlay); sliderContainer.classList.add('disabled'); }
 });
 opacitySlider.addEventListener('input', (e) => { radarUserOpacity=parseFloat(e.target.value); applyRadarOpacity(); document.getElementById('radar-pct').textContent=Math.round(radarUserOpacity*100)+'%'; });
+
+/* =========================================================
+   4.0) ขอบเขตจังหวัดสงขลา (ไฟล์ GPX ในรีโป) – เส้นสีแดงซ้อนบนเรดาร์
+   ========================================================= */
+const BND = { files: ['สงขลา.gpx', 'https://raw.githubusercontent.com/72media/hy-cctv/refs/heads/main/สงขลา.gpx'], layer: null, loading: null };
+map.createPane('boundary'); map.getPane('boundary').style.zIndex = 450; map.getPane('boundary').style.pointerEvents = 'none';
+const bndChk = document.getElementById('layer-boundary');
+const bndSub = document.getElementById('bnd-sub');
+async function loadBoundary(){
+    if (BND.layer) return BND.layer;
+    if (BND.loading) return BND.loading;
+    BND.loading = (async () => {
+        let lastErr;
+        for (const f of BND.files){
+            try{
+                const res = await fetch(encodeURI(f)); if (!res.ok) throw new Error('HTTP ' + res.status);
+                const doc = new DOMParser().parseFromString(await res.text(), 'application/xml');
+                const lines = [...doc.getElementsByTagName('trkseg')].map(seg =>
+                    [...seg.getElementsByTagName('trkpt')].map(p => [parseFloat(p.getAttribute('lat')), parseFloat(p.getAttribute('lon'))]).filter(a => isFinite(a[0]) && isFinite(a[1])))
+                    .filter(l => l.length > 1);
+                if (!lines.length) throw new Error('ไม่พบเส้นในไฟล์');
+                BND.layer = L.polyline(lines, {pane:'boundary', color:'#e11d2e', weight:3, opacity:.95, lineJoin:'round', interactive:false, smoothFactor:1.5});
+                return BND.layer;
+            }catch(e){ lastErr = e; }
+        }
+        throw lastErr;
+    })();
+    try{ return await BND.loading; } finally { BND.loading = null; }
+}
+async function setBoundary(on){
+    if (!on){ if (BND.layer) map.removeLayer(BND.layer); bndSub.textContent = 'เส้นสีแดง ซ้อนบนเรดาร์'; return; }
+    try{
+        const l = await loadBoundary();
+        if (bndChk.checked) l.addTo(map);
+        bndSub.textContent = 'เส้นสีแดง ซ้อนบนเรดาร์';
+    }catch(e){
+        console.warn('Boundary error:', e.message);
+        bndSub.innerHTML = '⚠️ โหลดเส้นขอบเขตไม่สำเร็จ · แตะเพื่อลองใหม่';
+        bndChk.checked = false;
+    }
+}
+bndChk.addEventListener('change', e => setBoundary(e.target.checked));
+bndSub.addEventListener('click', e => { if (!bndChk.checked){ e.preventDefault(); bndChk.checked = true; setBoundary(true); } });
+setBoundary(true);
 
 /* =========================================================
    4.1) RAIN – ปริมาณฝนสะสมในจังหวัดสงขลา (กรมอุตุนิยมวิทยา)
