@@ -250,6 +250,9 @@
 
   .layer-header { padding-bottom: 8px; border-bottom: 1px solid var(--line); }
   .layer-header strong { font-size: 16px; font-weight: 800; }
+  #sidebar header { position: relative; }
+  .layer-credit { position: absolute; right: 20px; bottom: 12px; font-size: 12px; font-weight: 700; color: #e0f2fe; text-decoration: none; white-space: nowrap; opacity: .95; }
+  .layer-credit:hover { text-decoration: underline; color: #fff; }
   .layer-close { width: 30px; height: 30px; border-radius: 50%; background: #f1f5f9; font-size: 14px; }
   .layer-close:hover { background: #e2e8f0; }
   .layer-panel h4 { margin: 4px 0 -4px; }
@@ -441,6 +444,7 @@
           <div id="clock">กำลังโหลดเวลา...</div>
         </div>
         <button id="refresh" title="โหลดข้อมูลกล้องใหม่">⟳ โหลดใหม่</button>
+        <a class="layer-credit" href="https://www.facebook.com/hs8tv" target="_blank" rel="noopener" title="ผู้จัดทำโครงการ: เพจ Facebook hs8tv">(FB hs8tv)</a>
       </header>
 
       <div class="action-bar">
