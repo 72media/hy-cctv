@@ -181,6 +181,13 @@
     cursor: pointer; font-size: 20px; transition: 0.2s;
   }
   .layer-btn:hover { background: #f8fafc; }
+  .reset-btn {
+    position: absolute; top: 16px; right: 70px; z-index: 1000; height: 44px; padding: 0 14px;
+    background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 14px; font-weight: 700;
+    color: var(--brand-dark); font-family: inherit; border: none; white-space: nowrap; transition: 0.2s;
+  }
+  .reset-btn:hover { background: #f0f9ff; }
   
   .layer-panel {
     position: absolute; top: 70px; right: 16px; z-index: 1000;
@@ -198,32 +205,102 @@
   .layer-panel label { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--txt); cursor: pointer; }
   .layer-panel input[type="radio"], .layer-panel input[type="checkbox"] { accent-color: var(--brand); cursor: pointer; width: 16px; height: 16px; }
   
-  .radar-slider-box { padding-left: 24px; margin-bottom: 4px; transition: opacity 0.2s; }
+  .radar-slider-box { display: flex; align-items: center; gap: 10px; padding: 0 2px; font-size: 12px; color: var(--muted); font-weight: 600; transition: opacity 0.2s; }
+  .radar-slider-box b { min-width: 36px; text-align: right; color: #0f172a; }
   .radar-slider-box.disabled { opacity: 0.4; pointer-events: none; }
-  .radar-slider-box input[type="range"] { width: 100%; accent-color: var(--brand); cursor: pointer; }
+  .radar-slider-box input[type="range"] { flex: 1; min-width: 0; accent-color: var(--brand); cursor: pointer; }
 
   /* ปริมาณฝนสะสม (TMD) */
-  .rain-box { display: none; flex-direction: column; gap: 8px; }
+  .layer-panel { width: 300px; max-width: calc(100vw - 32px); border-radius: 16px; }
+  .layer-panel input[type="checkbox"], .layer-panel input[type="radio"] { accent-color: var(--brand-dark); width: 16px; height: 16px; }
+  .layer-panel h4 { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); border-bottom: none; padding-bottom: 0; }
+  .rain-box { display: none; flex-direction: column; gap: 12px; padding: 12px; margin-top: -4px; border-radius: 14px; background: linear-gradient(180deg,#f0f9ff 0%,#f8fafc 100%); border: 1px solid #e0f2fe; }
   .rain-box.show { display: flex; }
-  .rain-tabs { display: flex; gap: 6px; }
-  .rain-tabs button { flex: 1; padding: 6px 0; border: 1px solid var(--line); background: #f8fafc; border-radius: 8px; font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer; font-family: inherit; }
-  .rain-tabs button.active { background: var(--brand); color: #fff; border-color: var(--brand); }
-  .rain-status { font-size: 12px; color: var(--muted); line-height: 1.4; }
-  .rain-retry { margin-left: 6px; padding: 3px 10px; border: 1px solid var(--brand); background: #fff; color: var(--brand-dark); border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; }
-  .rain-list { list-style: none; margin: 0; padding: 0; }
-  .rain-list li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; font-size: 13px; cursor: pointer; }
-  .rain-list li:hover { background: #f1f5f9; }
-  .rain-list .rain-empty { color: var(--muted); cursor: default; }
-  .rl-val { display: inline-block; min-width: 44px; text-align: center; font-weight: 700; border-radius: 10px; padding: 2px 8px; font-size: 12px; }
-  .rain-legend { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; font-size: 11px; color: var(--muted); }
-  .rain-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 3px; vertical-align: -1px; }
-  .rain-legend em { font-style: normal; }
+  .rain-tabs { display: flex; gap: 2px; padding: 3px; background: #e2e8f0; border-radius: 11px; }
+  .rain-tabs button { flex: 1; padding: 7px 0; border: none; background: transparent; border-radius: 9px; font-size: 13px; font-weight: 700; color: #64748b; cursor: pointer; font-family: inherit; transition: background .2s, color .2s, box-shadow .2s; }
+  .rain-tabs button:hover { color: #0f172a; }
+  .rain-tabs button.active { background: #fff; color: var(--brand-dark); box-shadow: 0 1px 4px rgba(15,23,42,.18); }
+  .rain-summary { display: grid; grid-template-columns: 1.5fr 1fr 1fr; gap: 6px; }
+  .rs-tile { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 8px 9px; min-width: 0; }
+  .rs-tile small { display: block; font-size: 10.5px; color: var(--muted); font-weight: 600; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rs-tile b { display: block; font-size: 17px; line-height: 1.15; color: #0f172a; font-weight: 800; }
+  .rs-tile b i { font-style: normal; font-size: 11px; font-weight: 600; color: var(--muted); margin-left: 2px; }
+  .rs-tile span { display: block; font-size: 11px; color: #475569; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rain-status { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--muted); line-height: 1.4; }
+  .rain-status:empty { display: none; }
+  .rain-status .live-dot { flex: 0 0 auto; width: 7px; height: 7px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 0 0 rgba(34,197,94,.6); animation: livePulse 2s infinite; }
+  @keyframes livePulse { 70% { box-shadow: 0 0 0 7px rgba(34,197,94,0); } 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); } }
+  .rain-retry { margin-left: 6px; padding: 4px 12px; border: 1px solid var(--brand); background: #fff; color: var(--brand-dark); border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit; }
+  .rain-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+  .rain-list li { display: grid; grid-template-columns: 18px minmax(0,1fr) 46px; grid-template-areas: "rk nm vl" ". bar vl"; column-gap: 8px; row-gap: 3px; align-items: center; padding: 7px 8px; border-radius: 10px; font-size: 13px; cursor: pointer; transition: background .15s; }
+  .rain-list li:hover { background: #fff; box-shadow: 0 1px 4px rgba(15,23,42,.1); }
+  .rain-list .rk { grid-area: rk; font-size: 11px; font-weight: 700; color: #94a3b8; text-align: center; }
+  .rain-list .nm { grid-area: nm; font-weight: 600; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rain-list .bar { grid-area: bar; height: 5px; background: #e2e8f0; border-radius: 3px; overflow: hidden; }
+  .rain-list .bar i { display: block; height: 100%; border-radius: 3px; min-width: 2px; transition: width .4s; }
+  .rain-list .vl { grid-area: vl; text-align: right; font-weight: 800; font-size: 14px; color: #0f172a; }
+  .rain-list .rain-empty { display: block; color: var(--muted); cursor: default; text-align: center; }
+  .rain-legend { display: flex; flex-direction: column; gap: 3px; }
+  .rain-legend .lg-bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; }
+  .rain-legend .lg-bar i { flex: 1; }
+  .rain-legend .lg-ticks { display: flex; justify-content: space-between; font-size: 10px; color: var(--muted); font-weight: 600; }
   .rain-note { font-size: 11px; color: var(--muted); }
+  .rl-val { display: inline-block; min-width: 44px; text-align: center; font-weight: 700; border-radius: 10px; padding: 2px 8px; font-size: 12px; }
+
+  .layer-header { padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+  .layer-header strong { font-size: 16px; font-weight: 800; }
+  .layer-close { width: 30px; height: 30px; border-radius: 50%; background: #f1f5f9; font-size: 14px; }
+  .layer-close:hover { background: #e2e8f0; }
+  .layer-panel h4 { margin: 4px 0 -4px; }
+  .base-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .base-opt { position: relative; flex-direction: column; justify-content: center; gap: 4px !important; padding: 10px 4px; border: 1.5px solid #e2e8f0; border-radius: 12px; background: #f8fafc; text-align: center; transition: border-color .15s, background .15s, box-shadow .15s; }
+  .base-opt:hover { background: #fff; border-color: #bae6fd; }
+  .base-opt input { position: absolute; opacity: 0; pointer-events: none; }
+  .base-opt .bo-ic { font-size: 22px; line-height: 1; }
+  .base-opt .bo-tx { font-size: 12px; font-weight: 700; color: #475569; }
+  .base-opt:has(input:checked) { border-color: var(--brand-dark); background: #f0f9ff; box-shadow: 0 0 0 3px rgba(14,165,233,.18); }
+  .base-opt:has(input:checked) .bo-tx { color: var(--brand-dark); }
+  .base-opt:has(input:focus-visible) { outline: 2px solid var(--brand-dark); outline-offset: 2px; }
+  .lay-card { display: flex; flex-direction: column; gap: 10px; padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 14px; background: #fff; }
+  .sw-row { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+  .sw-ic { flex: 0 0 auto; width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+  .sw-tx { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+  .sw-tx b { font-size: 14px; font-weight: 700; color: #0f172a; }
+  .sw-tx small { font-size: 11.5px; color: var(--muted); }
+  .layer-panel input.sw { appearance: none; -webkit-appearance: none; flex: 0 0 auto; width: 42px; height: 24px; border-radius: 12px; background: #cbd5e1; position: relative; cursor: pointer; transition: background .2s; margin: 0; }
+  .layer-panel input.sw::after { content: ''; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(15,23,42,.35); transition: transform .2s; }
+  .layer-panel input.sw:checked { background: var(--brand-dark); }
+  .layer-panel input.sw:checked::after { transform: translateX(18px); }
+  .layer-panel input.sw:focus-visible { outline: 2px solid var(--brand-dark); outline-offset: 2px; }
+  .lay-card .rain-box { margin-top: 0; }
+
+  /* ป้ายฝนบนแผนที่ */
   .rain-pin-wrap { background: none; border: none; }
-  .rain-pin { min-width: 30px; height: 20px; line-height: 16px; padding: 0 5px; text-align: center; font-size: 11px; font-weight: 700; border: 2px solid #fff; border-radius: 11px; box-shadow: 0 0 0 1.5px rgba(15,23,42,.75), 0 1px 4px rgba(0,0,0,.5); opacity: .93; box-sizing: border-box; white-space: nowrap; }
-  .rain-tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
-  .rain-tbl td { padding: 4px 0; }
-  .rain-tbl td:last-child { text-align: right; }
+  .rain-pin { position: absolute; left: 0; top: 0; transform: translate(-50%, calc(-100% - 7px)); display: flex; align-items: baseline; justify-content: center; gap: 2px; min-width: 38px; height: 24px; padding: 0 8px; font-size: 13px; font-weight: 800; line-height: 22px; border: 2px solid #fff; border-radius: 12px; box-shadow: 0 2px 6px rgba(15,23,42,.45); box-sizing: border-box; white-space: nowrap; transition: transform .15s; }
+  .rain-pin small { font-size: 9px; font-weight: 700; opacity: .85; }
+  .rain-pin::after { content: ''; position: absolute; left: 50%; bottom: -6px; width: 9px; height: 9px; background: inherit; border-right: 2px solid #fff; border-bottom: 2px solid #fff; transform: translateX(-50%) rotate(45deg); border-radius: 0 0 3px 0; }
+  .rain-pin-wrap:hover .rain-pin { transform: translate(-50%, calc(-100% - 7px)) scale(1.12); }
+  .rain-pin.heavy::before { content: ''; position: absolute; inset: -5px; border-radius: 16px; border: 2px solid currentColor; opacity: 0; animation: rainRing 2s infinite; }
+  @keyframes rainRing { 0% { opacity: .7; transform: scale(.85); } 100% { opacity: 0; transform: scale(1.35); } }
+
+  /* ป๊อปอัพสถานีฝน */
+  .rain-popup-wrap .leaflet-popup-content-wrapper { padding: 0; overflow: hidden; border-radius: 16px; box-shadow: 0 10px 30px rgba(15,23,42,.35); }
+  .rain-popup-wrap .leaflet-popup-content { margin: 0; width: 260px !important; }
+  .rain-popup-wrap .leaflet-popup-close-button { color: inherit; top: 8px; right: 8px; font-size: 20px; z-index: 2; }
+  .rp-head { padding: 14px 16px 12px; }
+  .rp-head .rp-name { font-size: 15px; font-weight: 800; line-height: 1.25; padding-right: 18px; }
+  .rp-head .rp-type { font-size: 11px; opacity: .8; margin-top: 1px; }
+  .rp-head .rp-big { margin-top: 8px; display: flex; align-items: baseline; gap: 6px; }
+  .rp-head .rp-big b { font-size: 34px; font-weight: 800; line-height: 1; }
+  .rp-head .rp-big span { font-size: 13px; font-weight: 700; opacity: .9; }
+  .rp-head .rp-per { font-size: 12px; opacity: .85; margin-top: 2px; }
+  .rp-body { padding: 10px 16px 6px; display: flex; flex-direction: column; gap: 9px; background: #fff; }
+  .rp-row { display: grid; grid-template-columns: 74px 1fr 52px; gap: 8px; align-items: center; font-size: 12.5px; color: #475569; }
+  .rp-row.cur { color: #0f172a; font-weight: 700; }
+  .rp-row .bar { height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden; }
+  .rp-row .bar i { display: block; height: 100%; border-radius: 3px; }
+  .rp-row .v { text-align: right; font-weight: 700; color: #0f172a; font-size: 13px; }
+  .rp-foot { padding: 8px 16px 12px; background: #fff; font-size: 11px; color: var(--muted); }
 
   /* Popup (General CCTV) */
   .leaflet-popup-content { margin: 12px; width: 280px !important; font-family: 'Inter', 'Sarabun', sans-serif; }
@@ -251,13 +328,15 @@
   .gistda-note { font-size: 11px; color: var(--muted); text-align: center; margin-top: 4px; }
 
   /* Overlays (Water & Multiview & GISTDA) */
-  .full-overlay { position: absolute; inset: 0; background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(4px); z-index: 2000; display: flex; flex-direction: column; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
+  .full-overlay { position: absolute; inset: 0; background: #0f172a; z-index: 2000; display: flex; flex-direction: column; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
   .full-overlay.active { opacity: 1; pointer-events: auto; }
   .overlay-header { background: #fff; padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); }
   .overlay-header h2 { margin: 0; font-size: 18px; font-weight: 700; }
   .btn-close { background: #f1f5f9; border: none; width: 36px; height: 36px; border-radius: 50%; font-size: 18px; font-weight: bold; color: var(--muted); cursor: pointer; }
   .overlay-content { flex: 1; background: #fff; position: relative; overflow-y: auto; -webkit-overflow-scrolling: touch; }
   .overlay-content iframe { width: 100%; height: 100%; border: none; display: block; }
+  .water-content { background: #0f172a; }
+  .water-content iframe { width: min(100%, 900px); margin: 0 auto; background: #fff; box-shadow: 0 0 0 1px #334155, 0 8px 30px rgba(0,0,0,.5); }
 
   /* Multiview Grid */
   .grid-container { display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(2, 1fr); gap: 12px; padding: 20px; height: calc(100% - 80px); background: #0f172a; overflow-y: auto; }
@@ -400,6 +479,7 @@
 
   <div id="map-wrapper">
     <div id="map"></div>
+    <button class="reset-btn" id="reset-btn" type="button" title="คืนค่าแผนที่ให้เห็นเรดาร์เต็มภาพ">⤢ คืนค่าแผนที่</button>
     <div class="layer-btn" id="layer-btn">🗺️</div>
     <div class="layer-panel" id="layer-panel">
       <div class="layer-header">
@@ -407,15 +487,22 @@
         <button class="layer-close" id="layer-close">✕</button>
       </div>
       <h4>แผนที่พื้นฐาน</h4>
-      <label><input type="radio" name="base" value="google" checked> 🛰️ Google Hybrid</label>
-      <label><input type="radio" name="base" value="topo"> ⛰️ OpenTopoMap</label>
-      <label><input type="radio" name="base" value="dark"> 🌃 แบบมืด (Dark)</label>
-      <h4 style="margin-top:12px;">เลเยอร์ซ้อนทับ</h4>
-      <label><input type="checkbox" id="layer-radar" checked> เรดาร์น้ำฝน</label>
-      <div class="radar-slider-box" id="radar-slider-container">
-        <input type="range" id="radar-opacity-slider" min="0" max="1" step="0.05" value="0.7">
+      <div class="base-grid">
+        <label class="base-opt"><input type="radio" name="base" value="google" checked><span class="bo-ic">🛰️</span><span class="bo-tx">ดาวเทียม</span></label>
+        <label class="base-opt"><input type="radio" name="base" value="topo"><span class="bo-ic">⛰️</span><span class="bo-tx">ภูมิประเทศ</span></label>
+        <label class="base-opt"><input type="radio" name="base" value="dark"><span class="bo-ic">🌃</span><span class="bo-tx">โหมดมืด</span></label>
       </div>
-      <label><input type="checkbox" id="layer-rain"> 🌧️ ปริมาณฝนสะสม (สงขลา)</label>
+      <h4>เลเยอร์ซ้อนทับ</h4>
+      <div class="lay-card">
+        <label class="sw-row"><span class="sw-ic" style="background:#e0f2fe">📡</span><span class="sw-tx"><b>เรดาร์น้ำฝน</b><small>ภาพเรดาร์ตรวจอากาศ</small></span><input type="checkbox" class="sw" id="layer-radar" checked></label>
+        <div class="radar-slider-box" id="radar-slider-container">
+          <span>ความทึบ</span>
+          <input type="range" id="radar-opacity-slider" min="0" max="1" step="0.05" value="1">
+          <b id="radar-pct">100%</b>
+        </div>
+      </div>
+      <div class="lay-card">
+        <label class="sw-row"><span class="sw-ic" style="background:#dbeafe">🌧️</span><span class="sw-tx"><b>ปริมาณฝนสะสม</b><small>สถานีตรวจวัด จ.สงขลา</small></span><input type="checkbox" class="sw" id="layer-rain"></label>
       <div class="rain-box" id="rain-box">
         <div class="rain-tabs" id="rain-tabs">
           <button type="button" data-k="precip_today" class="active">วันนี้</button>
@@ -423,19 +510,15 @@
           <button type="button" data-k="precip_3days">3 วัน</button>
           <button type="button" data-k="precip_7days">7 วัน</button>
         </div>
+        <div class="rain-summary" id="rain-summary"></div>
         <div class="rain-status" id="rain-status"></div>
         <ul class="rain-list" id="rain-list"></ul>
         <div class="rain-legend">
-          <span><i style="background:#9ca3af"></i>0</span>
-          <span><i style="background:#a7f3d0"></i>&lt;10</span>
-          <span><i style="background:#22c55e"></i>10–35</span>
-          <span><i style="background:#facc15"></i>35–70</span>
-          <span><i style="background:#fb923c"></i>70–100</span>
-          <span><i style="background:#ef4444"></i>100–150</span>
-          <span><i style="background:#a21caf"></i>≥150</span>
-          <em>มม.</em>
+          <div class="lg-bar"><i style="background:#9ca3af"></i><i style="background:#a7f3d0"></i><i style="background:#22c55e"></i><i style="background:#facc15"></i><i style="background:#fb923c"></i><i style="background:#ef4444"></i><i style="background:#a21caf"></i></div>
+          <div class="lg-ticks"><span>0</span><span>10</span><span>35</span><span>70</span><span>100</span><span>150+ มม.</span></div>
         </div>
         <div class="rain-note">ข้อมูล: กรมอุตุนิยมวิทยา (TMD) · แตะสถานีเพื่อดูรายละเอียด</div>
+      </div>
       </div>
     </div>
   </div>
@@ -446,7 +529,7 @@
       <h2>💧 รายงานสถานการณ์น้ำ คลองอู่ตะเภา</h2>
       <button class="btn-close" onclick="closeWaterView()">✕</button>
     </div>
-    <div class="overlay-content">
+    <div class="overlay-content water-content">
       <iframe src="https://hyd-app-db.rid.go.th/SVG/flow_water.html?svg=hydro8_637159780458091581" title="สถานการณ์น้ำ"></iframe>
     </div>
   </div>
@@ -457,7 +540,7 @@
       <h2>📹 กล้องชายฝั่ง จีสด้า (GISTDA)</h2>
       <button class="btn-close" onclick="closeGistdaView()">✕</button>
     </div>
-    <div class="overlay-content" style="background: #f8fafc;">
+    <div class="overlay-content" style="background: #0f172a;">
       <div class="gistda-grid">
         <!-- กล้อง สทิงพระ -->
         <div class="gistda-card">
@@ -625,7 +708,11 @@ googleHybrid.addTo(map);
 
 const radarUrl='https://semet.uk/loop/SKLLoop.gif';
 const radarBounds=[[6.074166,99.402328],[8.297372,101.484333]];
-const radarOverlay=L.imageOverlay(radarUrl,radarBounds,{opacity:0.7,alt:'Radar'}).addTo(map);
+const radarOverlay=L.imageOverlay(radarUrl,radarBounds,{opacity:1,alt:'Radar'}).addTo(map);
+// ซูมใกล้ระดับถนน (>=12) ภาพเรดาร์จะถูกขยายจนเบลอและบังแผนที่ จึงลดความทึบอัตโนมัติ
+let radarUserOpacity=1;
+function applyRadarOpacity(){ radarOverlay.setOpacity(map.getZoom()>=12 ? Math.min(radarUserOpacity,0.35) : radarUserOpacity); }
+map.on('zoomend',applyRadarOpacity);
 
 map.fitBounds(radarBounds,{padding:[0,0]});
 setTimeout(()=>{map.invalidateSize();map.fitBounds(radarBounds,{padding:[0,0]});},500);
@@ -637,6 +724,12 @@ const layerClose = document.getElementById('layer-close');
 
 layerBtn.addEventListener('click', () => layerPanel.classList.toggle('active'));
 layerClose.addEventListener('click', () => layerPanel.classList.remove('active'));
+document.getElementById('reset-btn').addEventListener('click', () => {
+    map.closePopup();
+    if (!map.hasLayer(radarOverlay)) { radarChk.checked = true; map.addLayer(radarOverlay); sliderContainer.classList.remove('disabled'); }
+    map.invalidateSize();
+    map.flyToBounds(radarBounds, {padding:[0,0], duration:.6});
+});
 
 // Base Layers Listener
 document.querySelectorAll('input[name="base"]').forEach(radio => {
@@ -657,7 +750,7 @@ radarChk.addEventListener('change', (e) => {
     if (e.target.checked) { map.addLayer(radarOverlay); sliderContainer.classList.remove('disabled'); }
     else { map.removeLayer(radarOverlay); sliderContainer.classList.add('disabled'); }
 });
-opacitySlider.addEventListener('input', (e) => radarOverlay.setOpacity(parseFloat(e.target.value)));
+opacitySlider.addEventListener('input', (e) => { radarUserOpacity=parseFloat(e.target.value); applyRadarOpacity(); document.getElementById('radar-pct').textContent=Math.round(radarUserOpacity*100)+'%'; });
 
 /* =========================================================
    4.1) RAIN – ปริมาณฝนสะสมในจังหวัดสงขลา (กรมอุตุนิยมวิทยา)
@@ -702,21 +795,29 @@ function rainDateText(){
     return t.toLocaleDateString('th-TH', {day:'numeric', month:'short', year:'2-digit', timeZone:'UTC'});
 }
 function rainPopupHtml(r){
-    const row = k => {
-        const v = rainNum(r[k]); const s = v === null ? {bg:'#e5e7eb', fg:'#374151'} : rainStyle(v);
-        return `<tr><td>${RAIN.labels[k]}</td><td><span class="rl-val" style="background:${s.bg};color:${s.fg}">${v === null ? '–' : fmtMm(v)} มม.</span></td></tr>`;
-    };
+    const k = RAIN.period, cur = rainNum(r[k]), hs = rainStyle(cur === null ? 0 : cur);
+    const isAws = /AWS|Automatic/i.test(String(r.station_name_en || '') + String(RAIN.names[r.station_id] || ''));
+    const rows = ['precip_today','precip_1hr','precip_yesterday','precip_3days','precip_7days'].map(key => {
+        const v = rainNum(r[key]); const st = v === null ? {bg:'#cbd5e1'} : rainStyle(v);
+        const w = v === null ? 0 : (v > 0 ? Math.max(4, Math.min(100, v / 150 * 100)) : 0);
+        return `<div class="rp-row${key === k ? ' cur' : ''}"><span>${RAIN.labels[key]}</span><div class="bar"><i style="width:${w}%;background:${st.bg}"></i></div><span class="v">${v === null ? '–' : fmtMm(v)}</span></div>`;
+    }).join('');
     return `<div class="rain-pop">
-        <div class="pop-title">🌧️ ${esc(rainName(r))}</div>
-        <table class="rain-tbl">${row('precip_today')}${row('precip_1hr')}${row('precip_yesterday')}${row('precip_3days')}${row('precip_7days')}</table>
-        <div class="gistda-note" style="text-align:left">ข้อมูล ณ ${esc(rainDateText())} · ที่มา: กรมอุตุนิยมวิทยา</div>
+        <div class="rp-head" style="background:linear-gradient(135deg,${hs.bg},${hs.bg}dd);color:${hs.fg}">
+            <div class="rp-name">${esc(rainName(r))}</div>
+            <div class="rp-type">${isAws ? 'สถานีอัตโนมัติ (AWS)' : 'สถานีอุตุนิยมวิทยา'}</div>
+            <div class="rp-big"><b>${cur === null ? '–' : fmtMm(cur)}</b><span>มม.</span></div>
+            <div class="rp-per">ฝน${esc(RAIN.labels[k])}</div>
+        </div>
+        <div class="rp-body">${rows}</div>
+        <div class="rp-foot">ข้อมูล ณ ${esc(rainDateText())} · กรมอุตุนิยมวิทยา</div>
     </div>`;
 }
 
 async function loadRain(force){
     const st = document.getElementById('rain-status');
     if (!force && RAIN.rows.length && Date.now() - RAIN.loadedAt < 4*60*1000) return true;
-    if (!RAIN.rows.length) st.textContent = 'กำลังโหลดข้อมูลฝน...';
+    if (!RAIN.rows.length) st.innerHTML = '<span class="live-dot"></span><span>กำลังโหลดข้อมูลฝน...</span>';
     try{
         const get = u => fetch(u, {cache:'no-store'}).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
         const [a, n] = await Promise.allSettled([get(RAIN.url), get(RAIN.urlNow)]);
@@ -748,20 +849,31 @@ function renderRain(fit){
         const s = rainStyle(v);
         const icon = L.divIcon({
             className: 'rain-pin-wrap',
-            html: `<div class="rain-pin" style="background:${s.bg};color:${s.fg}">${fmtMm(v)}</div>`,
-            iconSize: [36, 22], iconAnchor: [18, 11], popupAnchor: [0, -12]
+            html: `<div class="rain-pin${v >= 70 ? ' heavy' : ''}" style="background:${s.bg};color:${s.fg}">${fmtMm(v)}<small>มม.</small></div>`,
+            iconSize: [0, 0], iconAnchor: [0, 0], popupAnchor: [0, -36]
         });
-        const m = L.marker([+r.station_lat, +r.station_lon], {icon, zIndexOffset: -1000, title: rainName(r)}).bindPopup(rainPopupHtml(r));
+        const m = L.marker([+r.station_lat, +r.station_lon], {icon, zIndexOffset: -1000, title: rainName(r)})
+            .bindPopup(rainPopupHtml(r), {className: 'rain-popup-wrap', minWidth: 260, maxWidth: 260, autoPanPadding: [30, 30]});
+        m.on('popupopen', () => m.setPopupContent(rainPopupHtml(r)));
         RAIN.group.addLayer(m); RAIN.markers[r.station_id] = m; items.push({r, v, s});
     });
     if (!map.hasLayer(RAIN.group)) RAIN.group.addTo(map);
 
     items.sort((a, b) => b.v - a.v);
+    const maxV = Math.max(10, ...items.map(i => i.v));
     document.getElementById('rain-list').innerHTML = items.length
-        ? items.map(({r, v, s}) => `<li data-id="${r.station_id}"><span>${esc(rainName(r))}</span><span class="rl-val" style="background:${s.bg};color:${s.fg}">${fmtMm(v)}</span></li>`).join('')
+        ? items.map(({r, v, s}, i) => `<li data-id="${r.station_id}"><span class="rk">${i + 1}</span><span class="nm">${esc(rainName(r))}</span><div class="bar"><i style="width:${v > 0 ? Math.max(3, v / maxV * 100) : 0}%;background:${s.bg}"></i></div><span class="vl">${fmtMm(v)}</span></li>`).join('')
         : '<li class="rain-empty">ไม่มีข้อมูล</li>';
-    document.getElementById('rain-status').textContent =
-        `${RAIN.labels[k]} · ${items.length} สถานี · ข้อมูล ณ ${rainDateText()}` + (RAIN.warn ? ' · ⚠️ ' + RAIN.warn : '');
+
+    const wet = items.filter(i => i.v > 0).length;
+    const avg = items.length ? items.reduce((t, i) => t + i.v, 0) / items.length : 0;
+    const top = items[0];
+    document.getElementById('rain-summary').innerHTML = items.length ? `
+        <div class="rs-tile"><small>ฝนสูงสุด</small><b>${fmtMm(top.v)}<i>มม.</i></b><span>${esc(rainName(top.r))}</span></div>
+        <div class="rs-tile"><small>เฉลี่ย</small><b>${avg.toFixed(1)}<i>มม.</i></b><span>ทั้งจังหวัด</span></div>
+        <div class="rs-tile"><small>มีฝน</small><b>${wet}<i>/${items.length}</i></b><span>สถานี</span></div>` : '';
+    document.getElementById('rain-status').innerHTML =
+        `<span class="live-dot"></span><span>${esc(RAIN.labels[k])} · ข้อมูล ณ ${esc(rainDateText())}${RAIN.warn ? ' · ⚠️ ' + esc(RAIN.warn) : ''}</span>`;
     document.querySelectorAll('#rain-tabs button').forEach(b => b.classList.toggle('active', b.dataset.k === k));
 
     if (fit && RAIN.group.getLayers().length){
