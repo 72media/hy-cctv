@@ -197,6 +197,7 @@
     max-height: calc(100% - 90px); overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
   }
   .layer-panel > * { flex-shrink: 0; }
+  .layer-panel { touch-action: pan-y; }
   .layer-panel.active { display: flex; }
   .layer-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
   .layer-header strong { font-size: 15px; color: var(--txt); }
@@ -1224,28 +1225,36 @@ document.getElementById('top-panel').addEventListener('transitionend', fitList);
 setInterval(fitList, 1000);
 setTimeout(fitList, 50);
 
-/* ---------- เลื่อนรายการด้วยนิ้ว (เขียนเอง ใช้ได้แม้เบราว์เซอร์ไม่เลื่อนให้) ---------- */
+/* ---------- เลื่อนรายการ/แผงชั้นข้อมูลด้วยนิ้ว (เขียนเอง ใช้ได้แม้เบราว์เซอร์ไม่เลื่อนให้) ---------- */
 (function(){
     const list=document.getElementById('list');
-    const sb=document.getElementById('sidebar');
-    let active=false, startY=0, startTop=0, lastY=0, lastT=0, vel=0, moved=false, raf=null;
+    const panel=document.getElementById('layer-panel');
+    let cur=null, active=false, startY=0, startTop=0, lastY=0, lastT=0, vel=0, moved=false, raf=null;
 
-    // เช็คว่านิ้วอยู่บนพื้นที่รายการกล้องหรือไม่ (ดูจากพิกัด ไม่ขึ้นกับว่า element ไหนรับ event)
-    function inList(t){
-        if(window.innerWidth>820) return false;
+    const hit=(el,t)=>{ const r=el.getBoundingClientRect(); return t.clientX>=r.left && t.clientX<=r.right && t.clientY>=r.top && t.clientY<=r.bottom; };
+
+    // หาว่านิ้วอยู่บนพื้นที่เลื่อนอันไหน (ดูจากพิกัด ไม่ขึ้นกับว่า element ไหนรับ event)
+    function pick(e){
+        const t=e.touches[0];
+        if(window.innerWidth>820) return null;
+        // แผงชั้นข้อมูลเปิดอยู่ และนิ้วอยู่บนแผง (ไม่ใช่แถบเลื่อนความทึบ ซึ่งต้องลากได้เอง)
+        if(panel.classList.contains('active') && hit(panel,t)){
+            const tg=e.target;
+            if(tg && tg.closest && tg.closest('input[type="range"]')) return null;
+            return panel;
+        }
         // มีหน้าต่างซ้อน (รวมกล้อง / น้ำ / จีสด้า / ดูภาพขยาย) เปิดอยู่ → ไม่ยึดการเลื่อน ปล่อยให้หน้าต่างนั้นเลื่อนเอง
-        if(document.querySelector('.full-overlay.active, .lightbox.active')) return false;
-        const r=list.getBoundingClientRect();
-        return t.clientX>=r.left && t.clientX<=r.right && t.clientY>=r.top && t.clientY<=r.bottom;
+        if(document.querySelector('.full-overlay.active, .lightbox.active')) return null;
+        return hit(list,t) ? list : null;
     }
 
     // ดักที่ระดับ document (capture) เพื่อให้ได้ event ก่อนใครทั้งหมด
     document.addEventListener('touchstart', e=>{
         cancelAnimationFrame(raf);
-        const t=e.touches[0];
-        active = inList(t);
+        cur=pick(e); active=!!cur;
         if(!active) return;
-        startY=lastY=t.clientY; startTop=list.scrollTop; lastT=e.timeStamp;
+        const t=e.touches[0];
+        startY=lastY=t.clientY; startTop=cur.scrollTop; lastT=e.timeStamp;
         vel=0; moved=false;
     }, {passive:true, capture:true});
 
@@ -1255,7 +1264,7 @@ setTimeout(fitList, 50);
         const dy=startY - t.clientY;
         if(Math.abs(dy)>6) moved=true;
         e.preventDefault();
-        list.scrollTop = startTop + dy;
+        cur.scrollTop = startTop + dy;
         const dt=e.timeStamp - lastT;
         if(dt>0) vel=(lastY - t.clientY)/dt;
         lastY=t.clientY; lastT=e.timeStamp;
@@ -1265,12 +1274,12 @@ setTimeout(fitList, 50);
         if(!active) return;
         active=false;
         if(!moved) return;
-        let v=vel*16;
+        const el=cur; let v=vel*16;
         const step=()=>{
             if(Math.abs(v)<0.5) return;
-            const before=list.scrollTop;
-            list.scrollTop += v; v*=0.95;
-            if(list.scrollTop===before) return;
+            const before=el.scrollTop;
+            el.scrollTop += v; v*=0.95;
+            if(el.scrollTop===before) return;
             raf=requestAnimationFrame(step);
         };
         step();
@@ -1278,10 +1287,23 @@ setTimeout(fitList, 50);
     document.addEventListener('touchend', end, {passive:true, capture:true});
     document.addEventListener('touchcancel', end, {passive:true, capture:true});
 
-    // ถ้าเพิ่งลากนิ้ว ไม่ให้นับเป็นการแตะรายการ
-    list.addEventListener('click', e=>{
+    // ถ้าเพิ่งลากนิ้ว ไม่ให้นับเป็นการแตะรายการ/ปุ่ม
+    [list,panel].forEach(el=>el.addEventListener('click', e=>{
         if(moved){ e.stopPropagation(); e.preventDefault(); moved=false; }
-    }, true);
+    }, true));
+
+    // กำหนดความสูงสูงสุดของแผงเป็นพิกเซลชัดเจน (iOS บางตัวไม่เลื่อนถ้าใช้ % )
+    const wrap=document.getElementById('map-wrapper');
+    function fitPanel(){
+        const h=(window.visualViewport?window.visualViewport.height:window.innerHeight);
+        const wh=Math.min(wrap.clientHeight||h, h);
+        panel.style.maxHeight=Math.max(200, wh-70-16)+'px';
+    }
+    window.addEventListener('resize', fitPanel);
+    window.addEventListener('orientationchange', ()=>setTimeout(fitPanel,250));
+    if(window.visualViewport) window.visualViewport.addEventListener('resize', fitPanel);
+    document.getElementById('layer-btn').addEventListener('click', fitPanel);
+    fitPanel();
 })();
 
 // Toggle Top Panel
