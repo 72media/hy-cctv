@@ -344,6 +344,7 @@
   .pop-btn-wrap { display: flex; gap: 8px; margin-top: 12px; }
   .pop-btn { display: flex; align-items: center; justify-content: center; flex: 1; padding: 10px; border-radius: 8px; background: var(--brand); color: #fff; text-decoration: none; font-size: 13px; font-weight: 600; border: none; cursor: pointer; transition: 0.2s; }
   .pop-btn:hover { background: var(--brand-dark); }
+  .pop-btn.sv-btn { background: #16a34a; } .pop-btn.sv-btn:hover { background: #15803d; }
   .pop-btn.live-btn { background: #dc2626; } .pop-btn.live-btn:hover { background: #b91c1c; }
 
   /* GISTDA Video Popup CSS */
@@ -1089,10 +1090,16 @@ function popupHtml(c){
     // บัญชีดูภาพสดที่หน่วยงานราชการเปิดให้ใช้ร่วมกัน (ใส่ไว้ในลิงก์เพื่อกดแล้วดูได้ทันที)
     const liveUrl='http://live:Live2025!@ta200304.dyndns.info:5001/axis-cgi/mjpg/video.cgi';
     
-    let btnHtml = '';
+    const btns = [];
     if(isLive && c.photo) {
-        btnHtml = `<div class="pop-btn-wrap" style="margin-top:12px;"><a class="pop-btn live-btn" href="${liveUrl}" target="_blank" title="หากภาพไม่ขึ้น ให้เปิดในแท็บใหม่">🔴 ดูภาพสด (Live)</a></div>`;
+        btns.push(`<a class="pop-btn live-btn" href="${liveUrl}" target="_blank" title="หากภาพไม่ขึ้น ให้เปิดในแท็บใหม่">🔴 ดูภาพสด (Live)</a>`);
     }
+    if(c.lat!=null && c.lng!=null) {
+        // เปิด Google Street View ที่พิกัดกล้อง (ลิงก์ทางการของ Google Maps ไม่ต้องใช้ API key)
+        const svUrl = `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${c.lat},${c.lng}`;
+        btns.push(`<a class="pop-btn sv-btn" href="${svUrl}" target="_blank" rel="noopener" title="ดูภาพถนนรอบจุดนี้ใน Google Street View">🧭 Street View</a>`);
+    }
+    const btnHtml = btns.length ? `<div class="pop-btn-wrap" style="margin-top:12px;">${btns.join('')}</div>` : '';
 
     return `<div class="pop">
         <div class="pop-title">${esc(c.title)}</div>
