@@ -652,7 +652,8 @@ if (window.visualViewport) window.visualViewport.addEventListener('resize', setA
 /* =========================================================
    1) CONFIG & CONSTANTS
    ========================================================= */
-const API_CAMS = 'https://hatyaicityclimate.org/api/flood/cams';
+// ลองเรียกผ่านตัวกลางของเว็บเราเองก่อน (/api/cams) เพราะเซิร์ฟเวอร์ต้นทางไม่เปิด CORS ถ้าไม่ได้ค่อยลองเรียกตรง
+const API_CAMS_LIST = ['/api/cams', 'https://hatyaicityclimate.org/api/flood/cams'];
 const STALE_MINUTES = 120;
 const LAT = 7.0084; const LON = 100.4767;
 
@@ -1145,7 +1146,7 @@ function applyFilter(q){
     const s=(q||'').trim().toLowerCase();
     const list=ALL.filter(c=>!s||(c.title+' '+c.name+' '+c.code).toLowerCase().includes(s));
     cluster.clearLayers(); list.forEach(c=>{ if(c.marker) cluster.addLayer(c.marker); });
-    buildList(list); const cnt=document.getElementById('count'); cnt.textContent='📺 '+(s?list.length+'/'+ALL.length:ALL.length)+' กล้อง'+(window.USING_FALLBACK?' ⚠️':''); cnt.title=window.USING_FALLBACK?'โหลดข้อมูลสดไม่สำเร็จ กำลังใช้รายการสำรอง · แตะเพื่อดูทุกกล้อง':'จำนวนกล้อง · แตะเพื่อดูทุกกล้องพร้อมกัน';
+    buildList(list); const cnt=document.getElementById('count'); cnt.textContent='📺 '+(s?list.length+'/'+ALL.length:ALL.length)+' กล้อง'; cnt.title='จำนวนกล้อง · แตะเพื่อดูทุกกล้องพร้อมกัน';
 }
 
 function focusCam(c){
@@ -1233,8 +1234,13 @@ function openMeteoFull(){
 async function loadCams(){
     const btn=document.getElementById('refresh'); btn.disabled=true; btn.textContent='⏳ โหลด';
     try{
-        const res=await fetch(API_CAMS+'?t='+Date.now(),{cache:'no-store'}); if(!res.ok) throw new Error(res.status);
-        const json=await res.json(); let items=json.items||json.data||[];
+        let json=null, lastErr;
+        for(const u of API_CAMS_LIST){
+            try{ const res=await fetch(u+'?t='+Date.now(),{cache:'no-store'}); if(!res.ok) throw new Error(res.status); json=await res.json(); if((json.items||json.data||[]).length) break; json=null; }
+            catch(err){ lastErr=err; }
+        }
+        if(!json) throw (lastErr||new Error('No cam data'));
+        let items=json.items||json.data||[];
         items=items.filter(item=>!String(item.code||'').toUpperCase().startsWith('R'));
         if(!items.length) throw new Error('No cam data');
         window.USING_FALLBACK=false; render(items);
