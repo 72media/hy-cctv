@@ -333,16 +333,18 @@
 
   /* Popup (General CCTV) */
   .leaflet-popup-content { margin: 12px; width: 280px !important; font-family: 'Inter', 'Sarabun', sans-serif; }
-  .pop-title { font-weight: 700; font-size: 15px; margin-bottom: 10px; }
-  .pop-img { width: 100%; border-radius: 8px; display: block; background: #e2e8f0; cursor: zoom-in; min-height: 160px; object-fit: cover; transition: opacity 0.2s; }
+  .pop-title { font-weight: 700; font-size: 15px; line-height: 1.3; margin-bottom: 6px; padding-right: 14px; }
+  .pop-img { width: 100%; border-radius: 8px; display: block; background: #e2e8f0; cursor: zoom-in; aspect-ratio: 16/9; object-fit: cover; transition: opacity 0.2s; }
   .pop-img:hover { opacity: 0.9; }
   .pop-coord { font-size: 12px; color: var(--muted); margin-top: 8px; }
-  .pop-row { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+  .pop-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; margin-top: 8px; }
+  .pop-sub { display: flex; flex-wrap: wrap; gap: 2px 10px; margin-top: 4px; font-size: 11.5px; color: var(--muted); }
   .badge { color: #fff; font-size: 11px; padding: 4px 10px; border-radius: 20px; font-weight: 600; }
   .code { font-size: 12px; color: var(--muted); font-weight: 600; }
-  .pop-time { font-size: 13px; color: #374151; margin-top: 8px; }
-  .pop-btn-wrap { display: flex; gap: 8px; margin-top: 12px; }
-  .pop-btn { display: flex; align-items: center; justify-content: center; flex: 1; padding: 10px; border-radius: 8px; background: var(--brand); color: #fff; text-decoration: none; font-size: 13px; font-weight: 600; border: none; cursor: pointer; transition: 0.2s; }
+  .pop-time { font-size: 12.5px; color: #374151; }
+  .pop-btn-wrap { display: flex; gap: 8px; margin-top: 8px; }
+  .pop-btn { display: flex; align-items: center; justify-content: center; flex: 1; padding: 8px 10px; border-radius: 8px; background: var(--brand); color: #fff; text-decoration: none; font-size: 13px; font-weight: 600; border: none; cursor: pointer; transition: 0.2s; }
+  .leaflet-container a.pop-btn, .leaflet-container a.pop-btn:hover { color: #fff; }
   .pop-btn:hover { background: var(--brand-dark); }
   .pop-btn.sv-btn { background: #16a34a; } .pop-btn.sv-btn:hover { background: #15803d; }
   .pop-btn.live-btn { background: #dc2626; } .pop-btn.live-btn:hover { background: #b91c1c; }
@@ -1101,13 +1103,13 @@ function popupHtml(c){
     }
     const btnHtml = btns.length ? `<div class="pop-btn-wrap" style="margin-top:12px;">${btns.join('')}</div>` : '';
 
+    const coord = (c.lat!=null && c.lng!=null) ? `<span>📍 ${c.lat.toFixed(5)}, ${c.lng.toFixed(5)}</span>` : '';
+    const spons = c.sponsorName ? `<span>📷 ${esc(c.sponsorName)}</span>` : '';
     return `<div class="pop">
         <div class="pop-title">${esc(c.title)}</div>
         ${c.photo ? `<img class="pop-img" src="${esc(imgUrl(c))}" onclick="openLightbox('${esc(c.photo)}')" onerror="this.style.display='none'">` : ''}
-        ${c.lat&&c.lng?`<div class="pop-coord">📍 ${c.lat.toFixed(5)}, ${c.lng.toFixed(5)}</div>`:''}
-        <div class="pop-row"><span class="badge" style="background:${st.color}">${esc(st.label)}</span><span class="code">${esc(c.code)}</span></div>
-        <div class="pop-time">🕒 ${esc(c.date)} ${esc(c.time)} น.</div>
-        ${c.sponsorName?`<div style="font-size:12px;color:var(--muted);margin-top:4px;">📷 ${esc(c.sponsorName)}</div>`:''}
+        <div class="pop-meta"><span class="badge" style="background:${st.color}">${esc(st.label)}</span><span class="code">${esc(c.code)}</span><span class="pop-time">🕒 ${esc(c.date)} ${esc(c.time)} น.</span></div>
+        ${(coord||spons)?`<div class="pop-sub">${coord}${spons}</div>`:''}
         ${btnHtml}
     </div>`;
 }
@@ -1134,7 +1136,7 @@ function render(items){
     ALL=items.map(normalize);
     ALL.forEach(c=>{
         if(c.lat===null||c.lng===null) return;
-        c.marker=L.marker([c.lat,c.lng],{icon:pinIcon(statusOf(c).color),title:c.title,riseOnHover:true}).bindPopup(popupHtml(c),{maxWidth:320});
+        c.marker=L.marker([c.lat,c.lng],{icon:pinIcon(statusOf(c).color),title:c.title,riseOnHover:true}).bindPopup(popupHtml(c),{maxWidth:320,keepInView:true,autoPanPaddingTopLeft:[16,84],autoPanPaddingBottomRight:[16,16]});
         c.marker.on('popupopen',e=>{ const img=e.popup.getElement()?.querySelector('.pop-img'); if(img&&c.photo&&!img.src.includes('video.cgi')) img.src=imgUrl(c); });
     });
     applyFilter(document.getElementById('q').value);
@@ -1162,7 +1164,7 @@ function applyFilter(q){
 function focusCam(c){
     if(window.innerWidth<=820){ document.getElementById('sidebar').classList.remove('open'); document.getElementById('sidebar-toggle').classList.add('collapsed'); document.getElementById('sidebar-toggle').textContent='☰'; }
     if(!c.marker){ alert('กล้องนี้ไม่มีพิกัดบนแผนที่'); return; }
-    cluster.zoomToShowLayer(c.marker,()=>{ map.flyTo(c.marker.getLatLng(),Math.max(map.getZoom(),16),{duration:.6}); c.marker.openPopup(); });
+    cluster.zoomToShowLayer(c.marker,()=>{ map.flyTo(c.marker.getLatLng(),Math.max(map.getZoom(),16),{duration:.6}); setTimeout(()=>c.marker.openPopup(),700); });
 }
 
 /* =========================================================
