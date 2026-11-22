@@ -104,6 +104,8 @@
   .btn-action:hover { transform: translateY(-1px); box-shadow: var(--shadow-lg); }
   .btn-blue { background: linear-gradient(135deg, #3b82f6, #2563eb); color: #fff; }
   .btn-orange { background: linear-gradient(135deg, #f97316, #ea580c); color: #fff; }
+  .btn-indigo { background: linear-gradient(135deg, #6366f1, #4f46e5); color: #fff; text-decoration: none; }
+  a.btn-action { text-decoration: none; }
   .btn-teal { background: linear-gradient(135deg, #14b8a6, #0d9488); color: #fff; }
   .btn-teal .bw-icon { font-size: 26px; line-height: 1; }
   .btn-teal .bw-text { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.25; text-align: left; }
@@ -482,6 +484,7 @@
       <div class="action-bar">
         <button class="btn-action btn-blue" onclick="openWaterView()">💧 สถานการณ์น้ำ คลองอู่ตะเภา</button>
         <button class="btn-action btn-orange" onclick="openGistdaView()">📹 กล้องชายฝั่ง จีสด้า</button>
+        <a class="btn-action btn-indigo" href="https://songkhla.thaiwater.net/dashboard" target="_blank" rel="noopener" title="เปิดศูนย์ข้อมูลน้ำ สงขลา (ข้อมูลจากภาครัฐ) ในแท็บใหม่">🏛️ ศูนย์ข้อมูลน้ำ</a>
         <button class="btn-action btn-teal" id="btn-weather" onclick="openMeteogram()">
           <span class="bw-icon" id="bw-icon">🌦️</span>
           <span class="bw-text">
